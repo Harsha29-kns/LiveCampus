@@ -39,14 +39,13 @@ const Login: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!validate()) return;
-
-    const success = await login(email, password);
-    
-    if (success) {
-      navigate(from, { replace: true });
+    const result = await login(email, password);
+    if (result === 'change-password') {
+      navigate('/change-password');
+    } else if (result === true) {
+      navigate('/'); // or your dashboard
     }
+    // handle errors as needed
   };
 
   const handleGoogleSignIn = async () => {

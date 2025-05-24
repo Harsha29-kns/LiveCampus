@@ -19,6 +19,7 @@ import Profile from './pages/Profile';
 import NotFound from './pages/NotFound';
 import AdminUserManagement from './pages/AdminUserManagement';
 import ForgotPassword from './pages/ForgotPassword';
+import ChangePassword from './pages/ChangePassword';
 
 // Guards
 import AuthGuard from './guards/AuthGuard';
@@ -82,6 +83,7 @@ function App() {
             </AuthGuard>
           }
         />
+        <Route path="/change-password" element={<ChangePassword />} />
       </Route>
 
       {/* Not Found */}

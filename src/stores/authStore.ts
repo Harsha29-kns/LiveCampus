@@ -34,15 +34,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const user = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as User;
         set({ user, isAuthenticated: true, isLoading: false });
         toast.success(`Welcome back, ${user.name}!`);
-
-        // Check if password needs to be changed
         if (user.password === 'defaultpassword') {
-          // Redirect to change password page
-          // navigate('/change-password');
-          // Or show a warning message
-          // setShowChangePasswordWarning(true);
+          set({ isLoading: false });
+          return 'change-password';
         }
-
         return true;
       } else {
         toast.error('Invalid email or password');
