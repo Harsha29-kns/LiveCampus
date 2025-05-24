@@ -437,7 +437,7 @@ const Profile: React.FC = () => {
               <Button
                 variant="outline"
                 fullWidth
-                onClick={() => toast.success('Password reset feature coming soon!')}
+                onClick={() => navigate('/change-password')}
               >
                 Change Password
               </Button>
