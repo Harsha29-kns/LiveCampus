@@ -72,7 +72,7 @@ const AdminUserManagement: React.FC = () => {
                 <th className="px-2 py-1 border-b">Name</th>
                 <th className="px-2 py-1 border-b">Email</th>
                 <th className="px-2 py-1 border-b">Created At</th>
-                <th className="px-2 py-1 border-b">Password</th>
+                
                 <th className="px-2 py-1 border-b">Action</th>
               </tr>
             </thead>

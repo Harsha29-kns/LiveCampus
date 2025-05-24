@@ -4,6 +4,7 @@ import { db } from '../firebaseConfig';
 import { User, UserRole } from '../types';
 import toast from 'react-hot-toast';
 import { getAuth, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import bcrypt from 'bcryptjs';
 
 interface AuthState {
   user: User | null;
@@ -28,17 +29,28 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   login: async (email, password) => {
     set({ isLoading: true });
     try {
-      const q = query(collection(db, 'users'), where('email', '==', email), where('password', '==', password));
+      const q = query(collection(db, 'users'), where('email', '==', email));
       const snapshot = await getDocs(q);
+
       if (!snapshot.empty) {
-        const user = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as User;
-        set({ user, isAuthenticated: true, isLoading: false });
-        toast.success(`Welcome back, ${user.name}!`);
-        if (user.password === 'defaultpassword') {
+        const userDoc = snapshot.docs[0];
+        const user = { id: userDoc.id, ...userDoc.data() } as User;
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (isMatch) {
+          set({ user, isAuthenticated: true, isLoading: false });
+          toast.success(`Welcome back, ${user.name}!`);
+          // FIX: Check if the password is still the default (hashed)
+          const isDefault = await bcrypt.compare('defaultpassword', user.password);
+          if (isDefault) {
+            set({ isLoading: false });
+            return 'change-password';
+          }
+          return true;
+        } else {
+          toast.error('Invalid email or password');
           set({ isLoading: false });
-          return 'change-password';
+          return false;
         }
-        return true;
       } else {
         toast.error('Invalid email or password');
         set({ isLoading: false });
@@ -62,10 +74,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ isLoading: false });
         return false;
       }
+      const hashedPassword = await bcrypt.hash(password, 10);
       const newUser = {
         name,
         email,
-        password, // In production, NEVER store plain passwords!
+        password: hashedPassword,
         role,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -173,10 +186,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   addUser: async (name: string, email: string, password: string, role: string) => {
     try {
+      // Hash the password before storing
+      const hashedPassword = await bcrypt.hash(password, 10);
       const newUser = {
         name,
         email,
-        password, // In production, hash this!
+        password: hashedPassword, // Store the hash, not plain text
         role,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
