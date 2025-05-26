@@ -30,7 +30,7 @@ export default async function handler(req, res) {
 
   try {
     await transporter.sendMail({
-      from: `"LiveCampus" <${process.env.BREVO_USER}>`,
+      from: `"LiveCampus" <livecampuss@gmail.com>`,
       to: email,
       subject,
       text,
