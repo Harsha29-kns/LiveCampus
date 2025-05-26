@@ -8,6 +8,9 @@ import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { Event } from '../types';
 import toast from 'react-hot-toast';
+import { db } from '../firebaseConfig';
+
+import { addDoc, collection } from 'firebase/firestore';
 
 const CreateEvent: React.FC = () => {
   const { id } = useParams<{ id?: string }>(); // <-- get id from URL
@@ -138,28 +141,37 @@ const CreateEvent: React.FC = () => {
       startDate: startDateTime.toISOString(),
       endDate: endDateTime.toISOString(),
       createdBy: user.id,
-      organizerId: user.id,
-      organizerName: user.role === 'admin' ? 'Campus Administration' : 
-                    user.role === 'faculty' ? `Faculty of ${user.department || 'Studies'}` : 
-                    user.role === 'club' ? user.name : 'Student Organization',
+      organizerId: user.role === 'club' ? user.clubId : user.id,
+      organizerName: user.role === 'admin'
+        ? 'Campus Administration'
+        : user.role === 'faculty'
+          ? `Faculty of ${user.department || 'Studies'}`
+          : user.role === 'club'
+            ? user.name
+            : 'Student Organization',
       organizerType: user.role === 'student' ? 'club' : user.role,
       capacity: formData.capacity ? parseInt(formData.capacity) : undefined,
       image: formData.image || undefined,
       tags,
+      status: 'pending', // <-- Add this line
+      createdAt: new Date().toISOString(), // (optional, for sorting)
     };
     
-    if (isEditMode) {
-      // Update existing event
-      await updateEvent(id!, eventData); // You need to implement updateEvent in your store
-      toast.success('Event updated successfully!');
-    } else {
-      // Create new event
-      const newEvent = await createEvent(eventData);
-      if (newEvent) {
+    try {
+      if (isEditMode) {
+        // Update existing event
+        await updateEvent(id!, eventData); // You need to implement updateEvent in your store
+        toast.success('Event updated successfully!');
+      } else {
+        // Create new event
+        await addDoc(collection(db, 'events'), eventData);
         toast.success('Event created successfully! Awaiting approval.');
       }
+      navigate('/events');
+    } catch (error) {
+      console.error('Error creating/updating event:', error);
+      toast.error('Failed to create/update event. Please try again later.');
     }
-    navigate('/events');
   };
   
   useEffect(() => {

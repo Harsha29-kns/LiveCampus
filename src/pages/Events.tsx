@@ -20,7 +20,7 @@ const Events: React.FC = () => {
   const [filterOpen, setFilterOpen] = useState(false);
   const [filteredEvents, setFilteredEvents] = useState<Event[]>([]);
   const [filters, setFilters] = useState({
-    status: new URLSearchParams(location.search).get('filter') || 'all',
+    status: 'all', // or 'all'
     organizer: 'all',
     timeframe: 'upcoming',
   });
@@ -57,7 +57,7 @@ const Events: React.FC = () => {
       // Apply timeframe filter
       const now = new Date();
       if (filters.timeframe === 'upcoming') {
-        filtered = filtered.filter(event => new Date(event.startDate) > now);
+        filtered = filtered.filter(event => new Date(event.endDate) > now);
       } else if (filters.timeframe === 'past') {
         filtered = filtered.filter(event => new Date(event.endDate) < now);
       } else if (filters.timeframe === 'today') {
@@ -80,7 +80,7 @@ const Events: React.FC = () => {
         filtered = filtered.filter(
           event =>
             event.status === 'pending' &&
-            event.organizerId === user.id &&
+            event.organizerId === (user.role === 'club' ? user.clubId : user.id) &&
             event.organizerType === user.role
         );
       }

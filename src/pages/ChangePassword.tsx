@@ -5,6 +5,7 @@ import Button from '../components/ui/Button';
 import { useAuthStore } from '../stores/authStore';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import bcrypt from 'bcryptjs';
 
 const ChangePassword: React.FC = () => {
   const { user, logout } = useAuthStore();
@@ -33,8 +34,9 @@ const ChangePassword: React.FC = () => {
 
     setIsSaving(true);
     try {
-      // Update password in Firestore
-      await updateDoc(doc(db, 'users', user.id), { password });
+      // Hash the password before storing
+      const hashedPassword = await bcrypt.hash(password, 10);
+      await updateDoc(doc(db, 'users', user.id), { password: hashedPassword });
       await logout();
       alert('Password changed successfully! Please log in with your new password.');
       navigate('/login');

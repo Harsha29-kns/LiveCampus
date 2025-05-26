@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { collection, getDocs, addDoc, query, where, setDoc, doc, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, query, where, setDoc, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { User, UserRole } from '../types';
 import toast from 'react-hot-toast';
@@ -19,6 +19,7 @@ interface AuthState {
   fetchUsers: () => Promise<void>;
   deleteUser: (userId: string) => Promise<void>;
   addUser: (name: string, email: string, password: string, role: string) => Promise<void>;
+  updatePassword: (userId: string, newPassword: string) => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -35,11 +36,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (!snapshot.empty) {
         const userDoc = snapshot.docs[0];
         const user = { id: userDoc.id, ...userDoc.data() } as User;
+
+        // Only block login if not admin and not approved
+        if (user.role !== 'admin' && user.status !== 'approved') {
+          toast.error('Your account is pending approval by admin.');
+          set({ isLoading: false });
+          return false;
+        }
+
         const isMatch = await bcrypt.compare(password, user.password);
         if (isMatch) {
           set({ user, isAuthenticated: true, isLoading: false });
           toast.success(`Welcome back, ${user.name}!`);
-          // FIX: Check if the password is still the default (hashed)
           const isDefault = await bcrypt.compare('defaultpassword', user.password);
           if (isDefault) {
             set({ isLoading: false });
@@ -80,13 +88,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         email,
         password: hashedPassword,
         role,
+        status: (role === 'club' || role === 'faculty') ? 'pending' : 'approved',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
       const docRef = await addDoc(collection(db, 'users'), newUser);
-      set({ user: { id: docRef.id, ...newUser } as User, isAuthenticated: true, isLoading: false });
-      toast.success('Registration successful!');
-      return true;
+
+      // Only log in if approved
+      if (newUser.status === 'approved') {
+        set({ user: { id: docRef.id, ...newUser } as User, isAuthenticated: true, isLoading: false });
+        toast.success('Registration successful!');
+        return true;
+      } else {
+        set({ isLoading: false });
+        toast.success('Registration successful! Awaiting admin approval.');
+        return false;
+      }
     } catch (error) {
       toast.error('Registration error');
       set({ isLoading: false });
@@ -186,20 +203,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   addUser: async (name: string, email: string, password: string, role: string) => {
     try {
-      // Hash the password before storing
       const hashedPassword = await bcrypt.hash(password, 10);
       const newUser = {
         name,
         email,
-        password: hashedPassword, // Store the hash, not plain text
+        password: hashedPassword,
         role,
+        status: (role === 'club' || role === 'faculty') ? 'pending' : 'approved', // <-- Only pending for club/faculty
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
       await addDoc(collection(db, 'users'), newUser);
-      // Optionally, fetch users again here
     } catch (error) {
       // Handle error
     }
+  },
+
+  updatePassword: async (userId: string, newPassword: string) => {
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await updateDoc(doc(db, 'users', userId), {
+      password: hashedPassword,
+      updatedAt: new Date().toISOString(),
+    });
   },
 }));

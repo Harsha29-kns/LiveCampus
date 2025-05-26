@@ -3,6 +3,7 @@ import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, onSnapshot } fr
 import { db } from '../firebaseConfig';
 import { Club } from '../types';
 import toast from 'react-hot-toast';
+import { useAuthStore } from './authStore';
 
 interface ClubState {
   clubs: Club[];
@@ -42,15 +43,31 @@ export const useClubStore = create<ClubState>((set, get) => ({
   createClub: async (clubData) => {
     set({ isLoading: true });
     try {
+      const { name, description, president, vicePresident, facultyAdvisor, phoneNo } = clubData;
       const docRef = await addDoc(collection(db, 'clubs'), {
-        ...clubData,
+        name,
+        description,
+        president,
+        vicePresident,
+        facultyAdvisor,
+        phoneNo,
         memberCount: 1,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
+
+      // Update the user's profile with clubId (assuming user is president)
+      const { user } = useAuthStore.getState();
+      if (user) {
+        await updateDoc(doc(db, 'users', user.id), {
+          clubId: docRef.id,
+          clubRole: 'president', // or whatever role
+        });
+      }
+
       toast.success('Club created!');
       set({ isLoading: false });
-      return { id: docRef.id, ...clubData } as Club;
+      return { id: docRef.id, ...clubData };
     } catch (error) {
       toast.error('Failed to create club');
       set({ isLoading: false });
@@ -142,3 +159,14 @@ export const useClubStore = create<ClubState>((set, get) => ({
     // Implement this logic
   },
 }));
+
+// Example (in your club creation form)
+// await createClub({
+//   name,
+//   description,
+//   president,
+//   vicePresident,
+//   facultyAdvisor,
+//   phoneNo,
+//   // ...other fields
+// });

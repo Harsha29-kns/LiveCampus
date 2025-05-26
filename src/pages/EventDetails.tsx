@@ -10,7 +10,7 @@ import Input from '../components/ui/Input';
 import { format, parseISO } from 'date-fns';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
-import { doc, updateDoc, getDocs, query, collection, where } from 'firebase/firestore';
+import { doc, updateDoc, getDocs, query, collection, where, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import QRCode from 'react-qr-code';
 import QrScanner from 'react-qr-scanner';
@@ -36,6 +36,7 @@ const EventDetails: React.FC = () => {
   const [showScanner, setShowScanner] = useState(false);
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | undefined>(undefined);
+  const [club, setClub] = useState<any>(null);
   const qrRef = useRef<HTMLDivElement>(null);
   
   useEffect(() => {
@@ -105,6 +106,14 @@ const EventDetails: React.FC = () => {
       setSelectedDeviceId(backCam?.deviceId || videoInputs[0]?.deviceId);
     });
   }, [showScanner]);
+
+  useEffect(() => {
+    if (event && event.organizerType === 'club' && event.organizerId) {
+      getDoc(doc(db, 'clubs', event.organizerId)).then(snapshot => {
+        if (snapshot.exists()) setClub(snapshot.data());
+      });
+    }
+  }, [event]);
 
   if (!event) {
     return (
@@ -783,6 +792,20 @@ const EventDetails: React.FC = () => {
           )}
         </div>
       </div>
+
+      {club && (
+        <Card className="mt-8">
+          <CardHeader>
+            <h3 className="text-lg font-semibold">Organized by {club.name}</h3>
+          </CardHeader>
+          <CardBody>
+            <div>President: {club.president}</div>
+            <div>Vice-President: {club.vicePresident}</div>
+            <div>Faculty Advisor: {club.facultyAdvisor}</div>
+            <div>Phone: {club.phoneNo}</div>
+          </CardBody>
+        </Card>
+      )}
     </div>
   );
 };

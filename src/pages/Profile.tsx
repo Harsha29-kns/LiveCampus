@@ -10,6 +10,8 @@ import Badge from '../components/ui/Badge';
 import { format, parseISO } from 'date-fns';
 import toast from 'react-hot-toast';
 import { Event } from '../types';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../firebaseConfig';
 
 const Profile: React.FC = () => {
   const { user, updateProfile, isLoading } = useAuthStore();
@@ -26,6 +28,7 @@ const Profile: React.FC = () => {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [registeredEvents, setRegisteredEvents] = useState<Event[]>([]);
+  const [club, setClub] = useState(null);
   
   useEffect(() => {
     fetchEvents().then(() => {
@@ -39,6 +42,14 @@ const Profile: React.FC = () => {
       setRegisteredEvents(sampleEvents);
     });
   }, [fetchEvents, events]);
+  
+  useEffect(() => {
+    if (user?.clubId) {
+      getDoc(doc(db, 'clubs', user.clubId)).then(snapshot => {
+        if (snapshot.exists()) setClub(snapshot.data());
+      });
+    }
+  }, [user]);
   
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -461,6 +472,19 @@ const Profile: React.FC = () => {
           </Card>
         </div>
       </div>
+      
+      {club && (
+        <Card>
+          <CardHeader>
+            <h2 className="text-lg font-semibold text-neutral-900">My Club</h2>
+          </CardHeader>
+          <CardBody>
+            <div>Name: {club.name}</div>
+            <div>Description: {club.description}</div>
+            {/* Add more club fields as needed */}
+          </CardBody>
+        </Card>
+      )}
     </div>
   );
 };

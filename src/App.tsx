@@ -20,6 +20,7 @@ import NotFound from './pages/NotFound';
 import AdminUserManagement from './pages/AdminUserManagement';
 import ForgotPassword from './pages/ForgotPassword';
 import ChangePassword from './pages/ChangePassword';
+import CreateClub from './pages/CreateClub'; // or EditClub if you have a separate file
 
 // Guards
 import AuthGuard from './guards/AuthGuard';
@@ -84,6 +85,9 @@ function App() {
           }
         />
         <Route path="/change-password" element={<ChangePassword />} />
+        <Route path="/clubs/create" element={<CreateClub />} />
+        <Route path="/clubs/:id/edit" element={<CreateClub />} /> {/* or <EditClub /> if you have it */}
+        
       </Route>
 
       {/* Not Found */}

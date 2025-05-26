@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Users, User, Calendar, ArrowLeft, Edit, Trash2, Share2, Mail } from 'lucide-react';
+import { Users, User, Calendar, ArrowLeft, Edit, Mail, Share2 } from 'lucide-react';
 import { useClubStore } from '../stores/clubStore';
 import { useAuthStore } from '../stores/authStore';
 import { useEventStore } from '../stores/eventStore';
-import { Card, CardBody, CardHeader, CardFooter } from '../components/ui/Card';
+import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import { format, parseISO } from 'date-fns';
@@ -14,41 +14,38 @@ import { Event } from '../types';
 const ClubDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getClubById, fetchClubs, joinClub, leaveClub, isLoading } = useClubStore();
+  const { getClubById, fetchClubs, joinClub, leaveClub } = useClubStore();
   const { events, fetchEvents } = useEventStore();
   const { user } = useAuthStore();
   const [club, setClub] = useState(getClubById(id || ''));
   const [clubEvents, setClubEvents] = useState<Event[]>([]);
   const [isMember, setIsMember] = useState(false);
   const [isActionLoading, setIsActionLoading] = useState(false);
-  
+
+  // Fetch club and events
   useEffect(() => {
     if (!club) {
       fetchClubs().then(() => {
         const fetchedClub = getClubById(id || '');
-        if (fetchedClub) {
-          setClub(fetchedClub);
-        } else {
+        if (fetchedClub) setClub(fetchedClub);
+        else {
           toast.error('Club not found');
           navigate('/clubs');
         }
       });
     }
-    
     fetchEvents().then(() => {
       if (id) {
-        // Filter events organized by this club
         const filteredEvents = events.filter(
-          event => event.organizerId === id && event.organizerType === 'club' && event.status === 'approved'
+          event => event.organizerId === id && event.organizerType === 'club'
         );
         setClubEvents(filteredEvents);
       }
     });
   }, [id, club, fetchClubs, getClubById, navigate, fetchEvents, events]);
 
-  // In a real app, this would check if the user is a member of this club
+  // Simulate membership check (replace with real logic)
   useEffect(() => {
-    // Simulate a check if the user is a member
     setIsMember(Math.random() > 0.5);
   }, [id]);
 
@@ -62,37 +59,27 @@ const ClubDetails: React.FC = () => {
 
   const handleJoin = async () => {
     if (!id || !user) return;
-    
     setIsActionLoading(true);
     const success = await joinClub(id, user.id);
     setIsActionLoading(false);
-    
     if (success) {
       setIsMember(true);
       toast.success(`You've joined ${club.name}`);
-      // Refresh club to update member count
       const updatedClub = getClubById(id);
-      if (updatedClub) {
-        setClub(updatedClub);
-      }
+      if (updatedClub) setClub(updatedClub);
     }
   };
 
   const handleLeave = async () => {
     if (!id || !user) return;
-    
     setIsActionLoading(true);
     const success = await leaveClub(id, user.id);
     setIsActionLoading(false);
-    
     if (success) {
       setIsMember(false);
       toast.success(`You've left ${club.name}`);
-      // Refresh club to update member count
       const updatedClub = getClubById(id);
-      if (updatedClub) {
-        setClub(updatedClub);
-      }
+      if (updatedClub) setClub(updatedClub);
     }
   };
 
@@ -106,7 +93,6 @@ const ClubDetails: React.FC = () => {
         .then(() => toast.success('Shared successfully'))
         .catch((error) => console.log('Error sharing', error));
     } else {
-      // Fallback for browsers that don't support the Web Share API
       navigator.clipboard.writeText(window.location.href)
         .then(() => toast.success('Link copied to clipboard'))
         .catch(() => toast.error('Failed to copy link'));
@@ -131,7 +117,6 @@ const ClubDetails: React.FC = () => {
           Back to Clubs
         </Button>
       </div>
-      
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           {/* Club Header */}
@@ -151,14 +136,12 @@ const ClubDetails: React.FC = () => {
                     </span>
                   </div>
                 )}
-                
                 <div>
                   <h1 className="text-2xl font-bold text-neutral-900 mb-1">{club.name}</h1>
                   <p className="text-neutral-500 flex items-center">
                     <Users size={16} className="mr-1" />
                     {club.memberCount} members
                   </p>
-                  
                   {club.tags && club.tags.length > 0 && (
                     <div className="flex flex-wrap gap-2 mt-2">
                       {club.tags.map((tag, index) => (
@@ -169,7 +152,6 @@ const ClubDetails: React.FC = () => {
                     </div>
                   )}
                 </div>
-                
                 {canEdit && (
                   <div className="mt-4 md:mt-0 md:ml-auto flex space-x-2">
                     <Button
@@ -185,7 +167,6 @@ const ClubDetails: React.FC = () => {
               </div>
             </CardBody>
           </Card>
-          
           {/* Club Description */}
           <Card>
             <CardHeader>
@@ -197,12 +178,11 @@ const ClubDetails: React.FC = () => {
               </p>
             </CardBody>
           </Card>
-          
           {/* Club Events */}
           <Card>
             <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
               <h2 className="text-xl font-semibold text-neutral-900">Upcoming Events</h2>
-              {(isAdmin || isFaculty || isPresident || isFacultyAdvisor) && (
+              {canEdit && (
                 <Button 
                   variant="outline" 
                   size="sm"
@@ -230,12 +210,10 @@ const ClubDetails: React.FC = () => {
                           {format(parseISO(event.startDate), 'h:mm a')}
                         </div>
                       </div>
-                      
                       <div className="flex-grow">
                         <h3 className="font-medium text-neutral-900">{event.title}</h3>
                         <p className="text-sm text-neutral-500">{event.location}</p>
                       </div>
-                      
                       <div className="mt-2 sm:mt-0 text-sm text-neutral-500">
                         {event.registeredCount} registered
                       </div>
@@ -247,7 +225,7 @@ const ClubDetails: React.FC = () => {
                   <Calendar className="h-12 w-12 text-neutral-400 mx-auto mb-3" />
                   <h3 className="text-lg font-medium text-neutral-700">No upcoming events</h3>
                   <p className="text-neutral-500 mb-4">This club hasn't scheduled any events yet.</p>
-                  {(isAdmin || isFaculty || isPresident || isFacultyAdvisor) && (
+                  {canEdit && (
                     <Button 
                       onClick={() => navigate('/events/create')}
                       variant="outline"
@@ -260,7 +238,6 @@ const ClubDetails: React.FC = () => {
             </CardBody>
           </Card>
         </div>
-        
         <div className="space-y-6">
           {/* Club Details */}
           <Card>
@@ -275,7 +252,13 @@ const ClubDetails: React.FC = () => {
                   <p className="text-neutral-700">{club.president}</p>
                 </div>
               </div>
-              
+              <div className="flex items-start">
+                <User className="w-5 h-5 text-neutral-500 mt-0.5 mr-3" />
+                <div>
+                  <h3 className="font-medium text-neutral-900">Vice-President</h3>
+                  <p className="text-neutral-700">{club.vicePresident}</p>
+                </div>
+              </div>
               <div className="flex items-start">
                 <User className="w-5 h-5 text-neutral-500 mt-0.5 mr-3" />
                 <div>
@@ -283,7 +266,13 @@ const ClubDetails: React.FC = () => {
                   <p className="text-neutral-700">{club.facultyAdvisor}</p>
                 </div>
               </div>
-              
+              <div className="flex items-start">
+                <User className="w-5 h-5 text-neutral-500 mt-0.5 mr-3" />
+                <div>
+                  <h3 className="font-medium text-neutral-900">Phone No</h3>
+                  <p className="text-neutral-700">{club.phoneNo}</p>
+                </div>
+              </div>
               <div className="flex items-start">
                 <Users className="w-5 h-5 text-neutral-500 mt-0.5 mr-3" />
                 <div>
@@ -293,7 +282,6 @@ const ClubDetails: React.FC = () => {
               </div>
             </CardBody>
           </Card>
-          
           {/* Membership Card */}
           <Card>
             <CardBody>
@@ -329,7 +317,6 @@ const ClubDetails: React.FC = () => {
               )}
             </CardBody>
           </Card>
-          
           {/* Contact Button */}
           <Button
             variant="outline"
@@ -339,7 +326,6 @@ const ClubDetails: React.FC = () => {
           >
             Contact Club
           </Button>
-          
           {/* Share Button */}
           <Button
             variant="outline"

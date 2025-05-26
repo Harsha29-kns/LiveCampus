@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Search, Plus, Tag } from 'lucide-react';
+import { Users, Search, Plus, Tag, Pencil, Trash2 } from 'lucide-react';
 import { useClubStore } from '../stores/clubStore';
 import { useAuthStore } from '../stores/authStore';
 import { Card, CardBody } from '../components/ui/Card';
@@ -8,46 +8,65 @@ import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Badge from '../components/ui/Badge';
 import { Club } from '../types';
+import { doc, deleteDoc } from 'firebase/firestore';
+import { db } from '../firebaseConfig';
+import toast from 'react-hot-toast';
 
 const Clubs: React.FC = () => {
   const { clubs, fetchClubs, isLoading } = useClubStore();
   const { user } = useAuthStore();
   const navigate = useNavigate();
-  
+
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredClubs, setFilteredClubs] = useState<Club[]>([]);
-  
+
   useEffect(() => {
     fetchClubs();
   }, [fetchClubs]);
-  
+
   useEffect(() => {
     if (clubs.length > 0) {
       let filtered = [...clubs];
-      
+
       // Apply search filter
       if (searchTerm) {
-        filtered = filtered.filter(club => 
+        filtered = filtered.filter(club =>
           club.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
           club.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          club.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()))
+          (club.tags && club.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase())))
         );
       }
-      
+
       // Sort by member count (most popular first)
       filtered.sort((a, b) => b.memberCount - a.memberCount);
-      
+
       setFilteredClubs(filtered);
     }
   }, [clubs, searchTerm]);
-  
+
+  const handleDeleteClub = async (clubId: string) => {
+    if (!window.confirm('Are you sure you want to delete this club? This action cannot be undone.')) return;
+    try {
+      await deleteDoc(doc(db, 'clubs', clubId));
+      toast.success('Club deleted successfully');
+      fetchClubs();
+    } catch (error) {
+      toast.error('Failed to delete club');
+      console.error(error);
+    }
+  };
+
+  const handleEditClub = (clubId: string) => {
+    navigate(`/clubs/${clubId}/edit`);
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-neutral-900">Clubs & Organizations</h1>
         <div className="mt-2 sm:mt-0">
           {(user?.role === 'admin' || user?.role === 'faculty') && (
-            <Button 
+            <Button
               onClick={() => navigate('/clubs/create')}
               leftIcon={<Plus size={16} />}
             >
@@ -56,7 +75,7 @@ const Clubs: React.FC = () => {
           )}
         </div>
       </div>
-      
+
       {/* Search */}
       <div className="bg-white rounded-lg shadow-sm p-4">
         <Input
@@ -67,7 +86,7 @@ const Clubs: React.FC = () => {
           fullWidth
         />
       </div>
-      
+
       {/* Clubs Grid */}
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -91,18 +110,18 @@ const Clubs: React.FC = () => {
       ) : filteredClubs.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredClubs.map((club) => (
-            <Card 
-              key={club.id} 
-              className="transition-transform hover:-translate-y-1 hover:shadow-md"
+            <Card
+              key={club.id}
+              className="transition-transform hover:-translate-y-1 hover:shadow-md relative group"
               hoverable
               onClick={() => navigate(`/clubs/${club.id}`)}
             >
               <CardBody className="p-6">
                 <div className="flex items-center mb-4">
                   {club.logo ? (
-                    <img 
-                      src={club.logo} 
-                      alt={club.name} 
+                    <img
+                      src={club.logo}
+                      alt={club.name}
                       className="w-16 h-16 rounded-full object-cover mr-4"
                     />
                   ) : (
@@ -117,11 +136,11 @@ const Clubs: React.FC = () => {
                     <p className="text-sm text-neutral-500">{club.memberCount} members</p>
                   </div>
                 </div>
-                
+
                 <p className="text-neutral-700 line-clamp-3 mb-4">
                   {club.description}
                 </p>
-                
+
                 {club.tags && club.tags.length > 0 && (
                   <div className="flex flex-wrap gap-2">
                     {club.tags.slice(0, 3).map((tag, index) => (
@@ -134,6 +153,32 @@ const Clubs: React.FC = () => {
                         +{club.tags.length - 3} more
                       </Badge>
                     )}
+                  </div>
+                )}
+
+                {/* Admin Edit/Delete Buttons */}
+                {user?.role === 'admin' && (
+                  <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition">
+                    <button
+                      onClick={e => {
+                        e.stopPropagation();
+                        handleEditClub(club.id);
+                      }}
+                      className="bg-blue-600 text-white rounded-full p-1 hover:bg-blue-700"
+                      title="Edit Club"
+                    >
+                      <Pencil size={18} />
+                    </button>
+                    <button
+                      onClick={e => {
+                        e.stopPropagation();
+                        handleDeleteClub(club.id);
+                      }}
+                      className="bg-red-600 text-white rounded-full p-1 hover:bg-red-700"
+                      title="Delete Club"
+                    >
+                      <Trash2 size={18} />
+                    </button>
                   </div>
                 )}
               </CardBody>
@@ -150,9 +195,9 @@ const Clubs: React.FC = () => {
                 <>
                   No clubs match your search criteria. Try a different search term.
                   <br />
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
+                  <Button
+                    variant="outline"
+                    size="sm"
                     className="mt-2"
                     onClick={() => setSearchTerm('')}
                   >
@@ -164,7 +209,7 @@ const Clubs: React.FC = () => {
               )}
             </p>
             {(user?.role === 'admin' || user?.role === 'faculty') && (
-              <Button 
+              <Button
                 onClick={() => navigate('/clubs/create')}
               >
                 Create Club
