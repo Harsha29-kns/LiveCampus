@@ -12,7 +12,7 @@ const Maintenance: React.FC = () => {
   const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
-    const targetDate = new Date('2025-07-01T10:00:00'); // 🕒 SET LAUNCH DATE HERE
+    const targetDate = new Date('2025-06-07T19:58:00'); // 🕒 SET LAUNCH DATE HERE
 
     const interval = setInterval(() => {
       const now = new Date().getTime();
