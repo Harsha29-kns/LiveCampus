@@ -24,15 +24,6 @@
 
 ---
 
-## 📸 Demo Animation
-
-> Here's a mock animation showing LiveCampus in action.  
-> *(Replace with a real screen recording or animation once available)*
-
-![LiveCampus Animation](https://user-images.githubusercontent.com/placeholder/livecampus-demo.gif)
-
----
-
 ## 🧑‍💻 Tech Stack
 
 **Frontend:**
@@ -45,12 +36,57 @@
 **Backend:**
 - Node.js
 - Express.js
-- MongoDB + Mongoose
+- Firebase
 - JWT for authentication
 - Nodemailer for emails
 - Socket.IO for real-time updates
-- ImageKit for media uploads
 
 ---
 
-## 🏗️ Folder Structure
+👤 User Roles
+
+Role	Capabilities
+
+Admin	Manage users, events, media, and view live stats
+Faculty	Create/edit events and mark attendance
+Student	Register for events and check attendance
+
+
+
+---
+
+📲 Core Functionalities
+
+📡 Real-time notifications for event updates
+
+📝 Register & manage events with role-based UI
+
+🔐 Secure JWT authentication and verification
+
+✉️ Forgot password & email verification
+
+📷 Gallery page with image/video uploads
+
+📊 Admin dashboard with statistics and charts
+
+🧾 Attendance via QR code scan
+
+
+
+---
+
+🛡️ Security
+
+🔐 Passwords hashed with bcrypt
+
+🔒 JWT token for secure session management
+
+📧 Secure email verification & password reset
+
+✅ Input validation and role guards
+
+📬 Contact
+
+Ch Sri Harsha
+📧 livecampuss@gmail.com
+🔗 GitHub
