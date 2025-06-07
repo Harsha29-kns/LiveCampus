@@ -1,29 +1,94 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 const Maintenance: React.FC = () => {
+  const [timeLeft, setTimeLeft] = useState({
+    days: 0,
+    hours: 0,
+    minutes: 0,
+    seconds: 0,
+  });
+
+  const [email, setEmail] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+
+  useEffect(() => {
+    const targetDate = new Date('2025-07-01T10:00:00'); // 🕒 SET LAUNCH DATE HERE
+
+    const interval = setInterval(() => {
+      const now = new Date().getTime();
+      const distance = targetDate.getTime() - now;
+
+      if (distance < 0) {
+        clearInterval(interval);
+        setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+        return;
+      }
+
+      const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((distance / (1000 * 60 * 60)) % 24);
+      const minutes = Math.floor((distance / (1000 * 60)) % 60);
+      const seconds = Math.floor((distance / 1000) % 60);
+
+      setTimeLeft({ days, hours, minutes, seconds });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleNotify = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitted(true);
+    // 🔔 TODO: Send email to backend/email API
+  };
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-indigo-900 to-purple-900 text-white relative overflow-hidden px-4">
-      {/* Glowing Circles */}
-      <div className="absolute top-0 left-0 w-72 h-72 bg-purple-600 opacity-30 rounded-full blur-3xl animate-pulse -z-10" />
-      <div className="absolute bottom-0 right-0 w-72 h-72 bg-indigo-600 opacity-30 rounded-full blur-3xl animate-pulse delay-500 -z-10" />
+    <div className="min-h-screen bg-white flex flex-col items-center justify-center px-6 py-12 text-center">
+      <img
+        src="/maintenance-plug.png"
+        alt="Maintenance"
+        className="max-w-sm mb-6 animate-fade-in"
+      />
 
-      {/* Animated Maintenance Content */}
-      <div className="text-center">
-        <h1 className="text-4xl md:text-6xl font-bold mb-6 animate-fade-in-up">
-          🚧 We're Under Maintenance
-        </h1>
-        <p className="text-lg md:text-2xl text-slate-300 mb-6 animate-fade-in-up delay-200">
-          Sorry for the inconvenience. We're improving your experience.
+      <h1 className="text-3xl md:text-5xl font-bold text-blue-800 mb-3">
+        This site is under maintenance
+      </h1>
+      <p className="text-gray-600 text-lg mb-6">
+        We’re preparing to serve you better. Please check back later!
+      </p>
+
+      {/* Countdown Timer */}
+      <div className="text-2xl font-semibold text-gray-700 mb-6 space-x-2">
+        <span>{timeLeft.days}d</span>
+        <span>{String(timeLeft.hours).padStart(2, '0')}h</span>
+        <span>{String(timeLeft.minutes).padStart(2, '0')}m</span>
+        <span>{String(timeLeft.seconds).padStart(2, '0')}s</span>
+      </div>
+
+      {/* Notify Me Form */}
+      {!submitted ? (
+        <form onSubmit={handleNotify} className="w-full max-w-sm flex flex-col sm:flex-row items-center gap-2">
+          <input
+            type="email"
+            required
+            placeholder="Enter your email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button
+            type="submit"
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
+          >
+            Notify Me
+          </button>
+        </form>
+      ) : (
+        <p className="text-green-600 font-medium mt-4">
+          Thank you! We’ll notify you once we’re back online.
         </p>
-        <p className="text-sm text-gray-400 animate-fade-in-up delay-500">~ LiveCampus Team</p>
-      </div>
+      )}
 
-      {/* Wavy SVG Background at Bottom */}
-      <div className="absolute bottom-0 left-0 w-full overflow-hidden leading-none">
-        <svg viewBox="0 0 1440 320" className="w-full h-40">
-          <path fill="#6b21a8" fillOpacity="1" d="M0,128L40,154.7C80,181,160,235,240,240C320,245,400,203,480,176C560,149,640,139,720,133.3C800,128,880,128,960,154.7C1040,181,1120,235,1200,250.7C1280,267,1360,245,1400,234.7L1440,224L1440,320L1400,320C1360,320,1280,320,1200,320C1120,320,1040,320,960,320C880,320,800,320,720,320C640,320,560,320,480,320C400,320,320,320,240,320C160,320,80,320,40,320L0,320Z"></path>
-        </svg>
-      </div>
+      <div className="mt-10 text-sm text-gray-400">~ LiveCampus Team</div>
     </div>
   );
 };
