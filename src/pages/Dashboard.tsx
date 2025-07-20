@@ -34,33 +34,18 @@ const Dashboard: React.FC = () => {
   ).length;
   const pendingEventsCount = events.filter(event => event.status === 'pending').length;
 
-  // Upcoming Events
-  const upcomingEvents =
-    user?.role === 'admin'
-      ? events.filter(
-          event =>
-            new Date(event.endDate) > new Date() &&
-            event.status === 'approved'
-        )
-          .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
-          .slice(0, 3)
-      : user?.role === 'club'
-      ? events.filter(
-          event =>
-            event.organizerType === 'club' &&
-            event.organizerId === user.clubId &&
-            new Date(event.endDate) > new Date() &&
-            event.status === 'approved'
-        )
-          .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
-          .slice(0, 3)
-      : events.filter(
-          event =>
-            new Date(event.endDate) > new Date() &&
-            event.status === 'approved'
-        )
-          .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
-          .slice(0, 3);
+  // Show all approved events (including old/past)
+  const allApprovedEvents = events.filter(event => event.status === 'approved')
+    .sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
+
+  // Optionally, separate upcoming and past events
+  const upcomingEvents = allApprovedEvents.filter(
+    event => new Date(event.endDate) > new Date()
+  ).slice(0, 3);
+
+  const pastEvents = allApprovedEvents.filter(
+    event => new Date(event.endDate) <= new Date()
+  ).slice(0, 3);
 
   // Pending Events (Admin)
   const pendingEvents = events.filter(event => event.status === 'pending').slice(0, 3);
@@ -214,6 +199,55 @@ const Dashboard: React.FC = () => {
                   Create Event
                 </Button>
               )}
+            </CardBody>
+          </Card>
+        )}
+      </div>
+
+      {/* Past Events */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-2xl font-bold text-primary-800">Past Events</h2>
+        </div>
+        {isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[1, 2, 3].map(i => (
+              <Card key={i} className="animate-pulse h-48" />
+            ))}
+          </div>
+        ) : pastEvents.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {pastEvents.map(event => (
+              <Card
+                key={event.id}
+                className="hover:shadow-xl transition-shadow cursor-pointer"
+                onClick={() => navigate(`/events/${event.id}`)}
+              >
+                {event.image && (
+                  <div className="h-40 w-full overflow-hidden rounded-t-lg">
+                    <img src={event.image} alt={event.title} className="w-full h-full object-cover" />
+                  </div>
+                )}
+                <CardBody>
+                  <h3 className="text-lg font-bold text-neutral-900 mb-1">{event.title}</h3>
+                  <div className="text-sm text-neutral-500 mb-2">
+                    {format(parseISO(event.startDate), 'MMM d, yyyy • h:mm a')}
+                  </div>
+                  <div className="text-sm text-neutral-700 line-clamp-2 mb-2">{event.description}</div>
+                  <div className="flex items-center justify-between">
+                    <Badge variant="primary" size="sm">{event.organizerType}</Badge>
+                    <span className="text-xs text-neutral-500">{event.registeredCount} registered</span>
+                  </div>
+                </CardBody>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <Card>
+            <CardBody className="text-center py-8">
+              <Calendar className="h-10 w-10 text-neutral-400 mx-auto mb-2" />
+              <h3 className="text-lg font-medium text-neutral-700">No past events</h3>
+              <p className="text-neutral-500 mb-4">No previous events found.</p>
             </CardBody>
           </Card>
         )}

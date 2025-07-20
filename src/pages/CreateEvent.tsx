@@ -114,6 +114,16 @@ const CreateEvent: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Check for past dates
+    if (new Date(startDateTime) < new Date()) {
+      toast.error('Start date cannot be in the past.');
+      return;
+    }
+    if (new Date(endDateTime) < new Date(startDateTime)) {
+      toast.error('End date cannot be before start date.');
+      return;
+    }
+
     if (!validate()) {
       toast.error('Please fix the errors in the form');
       return;

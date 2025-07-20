@@ -125,11 +125,14 @@ const EventDetails: React.FC = () => {
 
   const handleApprove = async () => {
     if (!id) return;
-    
+    if (new Date(event.startDate) < new Date()) {
+      toast.error('Cannot approve an event with a past start date.');
+      return;
+    }
     setIsActionLoading(true);
     const updatedEvent = await approveEvent(id);
+    await fetchEvents();
     setIsActionLoading(false);
-    
     if (updatedEvent) {
       setEvent(updatedEvent);
       toast.success('Event approved successfully');

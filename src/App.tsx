@@ -23,11 +23,9 @@ import AdminUserManagement from './pages/AdminUserManagement';
 import ForgotPassword from './pages/ForgotPassword';
 import ChangePassword from './pages/ChangePassword';
 import CreateClub from './pages/CreateClub';
-<<<<<<< HEAD
 import Contact from './pages/Contact';
 import About from './pages/About';
-=======
->>>>>>> 9633c9ee04d50a548878dde4e02d0484118653ac
+
 
 // Guards
 import AuthGuard from './guards/AuthGuard';
