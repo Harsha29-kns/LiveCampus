@@ -1,8 +1,9 @@
 import { create } from 'zustand';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, where, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
-import { Event } from '../types';
+import { Event, User } from '../types';
 import toast from 'react-hot-toast';
+import { useAuthStore } from './authStore';
 
 interface EventState {
   events: Event[];
@@ -48,12 +49,88 @@ export const useEventStore = create<EventState>((set, get) => ({
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
-      toast.success('Event created! Awaiting approval.');
+
+      if (eventData?.organizerType === 'admin') {
+        toast.success('Event created and approved!');
+        // Send email notification immediately for admin-created events
+        const { fetchUsers } = useAuthStore.getState();
+        const allUsers = await fetchUsers();
+        const students = allUsers.filter((user: User) => user.role === 'student');
+
+        if (students.length > 0) {
+          try {
+            await fetch('https://live-campus.vercel.app/api/send-event-notification', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ event: { id: docRef.id, ...eventData }, students }),
+            });
+            toast.success('Event notification sent to students!');
+          } catch (emailError) {
+            toast.error('Event created, but mail is not sent.');
+            console.error('Email sending error:', emailError);
+          }
+        }
+      } else {
+        toast.success('Event created! Awaiting admin approval.');
+      }
+
       set({ isLoading: false });
       return { id: docRef.id, ...eventData } as Event;
     } catch (error) {
       console.error('Create event error:', error);
       toast.error('Failed to create event');
+      set({ isLoading: false });
+      return null;
+    }
+  },
+
+  approveEvent: async (id) => {
+    set({ isLoading: true });
+    try {
+      const eventRef = doc(db, 'events', id);
+      const eventSnap = await getDoc(eventRef);
+
+      if (!eventSnap.exists()) {
+        toast.error('Event not found.');
+        set({ isLoading: false });
+        return null;
+      }
+
+      const eventToApprove = { id: eventSnap.id, ...eventSnap.data() } as Event;
+
+      await updateDoc(eventRef, {
+        status: 'approved',
+        updatedAt: new Date().toISOString(),
+      });
+      toast.success('Event approved!');
+
+      // Send notification only if the event was created by a club or faculty
+      if (eventToApprove.organizerType === 'club' || eventToApprove.organizerType === 'faculty') {
+        const { fetchUsers } = useAuthStore.getState();
+        const allUsers = await fetchUsers();
+        const students = allUsers.filter((user: User) => user.role === 'student');
+
+        if (students.length > 0) {
+          try {
+            await fetch('https://live-campus.vercel.app/api/send-event-notification', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ event: eventToApprove, students }),
+            });
+            toast.success('Approval notification sent to students!');
+          } catch (emailError) {
+            toast.error('Event approved, but mail is not sent.');
+            console.error('Email sending error:', emailError);
+          }
+        }
+      }
+      
+      const updatedEvent = get().getEventById(id);
+      set({ isLoading: false });
+      return updatedEvent ? { ...updatedEvent, status: 'approved' } : null;
+
+    } catch (error) {
+      toast.error('Failed to approve event');
       set({ isLoading: false });
       return null;
     }
@@ -87,23 +164,6 @@ export const useEventStore = create<EventState>((set, get) => ({
       toast.error('Failed to delete event');
       set({ isLoading: false });
       return false;
-    }
-  },
-
-  approveEvent: async (id) => {
-    set({ isLoading: true });
-    try {
-      await updateDoc(doc(db, 'events', id), {
-        status: 'approved',
-        updatedAt: new Date().toISOString(),
-      });
-      toast.success('Event approved!');
-      set({ isLoading: false });
-      return get().getEventById(id);
-    } catch (error) {
-      toast.error('Failed to approve event');
-      set({ isLoading: false });
-      return null;
     }
   },
 
