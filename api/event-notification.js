@@ -26,15 +26,23 @@ export default async function handler(req, res) {
     from: '"LiveCampus" <livecampuss@gmail.com>',
     to: studentEmails,
     subject: `New Event: ${event.title}`,
-    text: `A new event has been created:
+    text: `Hello,
 
-Title: ${event.title}
-Description: ${event.description}
-Location: ${event.location}
-Date: ${new Date(event.startDate).toLocaleDateString()}
-Time: ${new Date(event.startDate).toLocaleTimeString()}
+A new event has been published on LiveCampus!
 
-Check it out on LiveCampus!`,
+Event Details:
+- Title: ${event.title}
+- Description: ${event.description}
+- Location: ${event.location}
+- Date: ${new Date(event.startDate).toLocaleDateString()}
+- Time: ${new Date(event.startDate).toLocaleTimeString()}
+
+For more information and to register, visit:
+${process.env.WEBSITE_URL || 'https://live-campus.vercel.app/'}
+
+See you there!
+LiveCampus Team
+`,
   };
 
   try {
