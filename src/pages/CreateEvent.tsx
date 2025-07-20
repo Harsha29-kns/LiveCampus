@@ -9,17 +9,15 @@ import Input from '../components/ui/Input';
 import { Event } from '../types';
 import toast from 'react-hot-toast';
 import { db } from '../firebaseConfig';
-
-import { addDoc, collection } from 'firebase/firestore';
+import { addDoc, collection, doc, updateDoc, getDoc } from 'firebase/firestore';
 
 const CreateEvent: React.FC = () => {
-  const { id } = useParams<{ id?: string }>(); // <-- get id from URL
+  const { id } = useParams<{ id?: string }>();
   const isEditMode = Boolean(id);
-
   const navigate = useNavigate();
   const { createEvent, isLoading, getEventById, updateEvent } = useEventStore();
   const { user } = useAuthStore();
-  
+
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -29,160 +27,16 @@ const CreateEvent: React.FC = () => {
     endDate: '',
     endTime: '',
     capacity: '',
-    image: '',
+    image: '', // This will hold the URL of an existing image
     tags: '',
   });
-  
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    
-    // Clear error when field is edited
-    if (errors[name]) {
-      setErrors(prev => {
-        const newErrors = { ...prev };
-        delete newErrors[name];
-        return newErrors;
-      });
-    }
-  };
-  
-  const validate = () => {
-    const newErrors: Record<string, string> = {};
-    
-    if (!formData.title.trim()) {
-      newErrors.title = 'Title is required';
-    }
-    
-    if (!formData.description.trim()) {
-      newErrors.description = 'Description is required';
-    }
-    
-    if (!formData.location.trim()) {
-      newErrors.location = 'Location is required';
-    }
-    
-    if (!formData.startDate) {
-      newErrors.startDate = 'Start date is required';
-    }
-    
-    if (!formData.startTime) {
-      newErrors.startTime = 'Start time is required';
-    }
-    
-    if (!formData.endDate) {
-      newErrors.endDate = 'End date is required';
-    }
-    
-    if (!formData.endTime) {
-      newErrors.endTime = 'End time is required';
-    }
-    
-    // Check if end date/time is after start date/time
-    const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
-    const endDateTime = new Date(`${formData.endDate}T${formData.endTime}`);
-    
-    if (startDateTime >= endDateTime) {
-      newErrors.endDate = 'End date/time must be after start date/time';
-    }
-    
-    // Validate capacity is a positive number if provided
-    if (formData.capacity && (isNaN(Number(formData.capacity)) || Number(formData.capacity) <= 0)) {
-      newErrors.capacity = 'Capacity must be a positive number';
-    }
-    
-    // Validate image URL if provided
-    if (formData.image && !isValidUrl(formData.image)) {
-      newErrors.image = 'Please enter a valid URL';
-    }
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-  
-  const isValidUrl = (url: string) => {
-    try {
-      new URL(url);
-      return true;
-    } catch (e) {
-      return false;
-    }
-  };
-  
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
 
-    // Check for past dates
-    if (new Date(startDateTime) < new Date()) {
-      toast.error('Start date cannot be in the past.');
-      return;
-    }
-    if (new Date(endDateTime) < new Date(startDateTime)) {
-      toast.error('End date cannot be before start date.');
-      return;
-    }
-
-    if (!validate()) {
-      toast.error('Please fix the errors in the form');
-      return;
-    }
-
-    if (!user) {
-      toast.error('You must be logged in to create an event');
-      return;
-    }
-
-    // Combine date and time
-    const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
-    const endDateTime = new Date(`${formData.endDate}T${formData.endTime}`);
-    
-    // Parse tags
-    const tags = formData.tags
-      .split(',')
-      .map(tag => tag.trim())
-      .filter(tag => tag.length > 0);
-    
-    const eventData: Partial<Event> = {
-      title: formData.title,
-      description: formData.description,
-      location: formData.location,
-      startDate: startDateTime.toISOString(),
-      endDate: endDateTime.toISOString(),
-      clubId: user.role === 'club' ? user.clubId : undefined,
-      organizerType: user.role,
-      createdBy: user.id,
-      capacity: formData.capacity ? parseInt(formData.capacity) : undefined,
-      image: formData.image || undefined,
-      tags,
-      status: 'pending', // <-- Add this line
-      createdAt: new Date().toISOString(), // (optional, for sorting)
-    };
-    
-    try {
-      if (isEditMode) {
-        // Update existing event
-        await updateEvent(id!, eventData); // You need to implement updateEvent in your store
-        toast.success('Event updated successfully!');
-      } else {
-        // Create new event
-        await addDoc(collection(db, 'events'), eventData);
-        toast.success('Event created successfully! Awaiting approval.');
-      }
-      navigate('/events');
-    } catch (error) {
-      console.error('Error creating/updating event:', error);
-      toast.error('Failed to create/update event. Please try again later.');
-    }
-  };
-  
   useEffect(() => {
-    if (isEditMode) {
-      // Fetch event data and prefill form
+    if (isEditMode && id) {
       const fetchEvent = async () => {
-        // Replace with your event fetching logic
-        const event = getEventById(id!);
+        const event = getEventById(id); // Assuming this is synchronous
         if (event) {
           setFormData({
             title: event.title || '',
@@ -196,12 +50,129 @@ const CreateEvent: React.FC = () => {
             image: event.image || '',
             tags: event.tags ? event.tags.join(', ') : '',
           });
+        } else {
+            toast.error("Event not found for editing.");
+            navigate('/events');
         }
       };
       fetchEvent();
     }
-  }, [isEditMode, id]);
+  }, [isEditMode, id, getEventById, navigate]);
+
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    if (errors[name]) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
+      });
+    }
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setImageFile(e.target.files[0]);
+    }
+  };
   
+  // This function uploads the file to your Cloudinary account
+  const uploadToCloudinary = async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    // ⚠️ IMPORTANT: You might want to create a different preset for events, e.g., 'event-images'
+    formData.append('upload_preset', 'event-images'); 
+
+    const res = await fetch('https://api.cloudinary.com/v1_1/ductmfmke/image/upload', {
+      method: 'POST',
+      body: formData,
+    });
+    const data = await res.json();
+    return data.secure_url; // This is the image URL from Cloudinary
+  };
+
+  const validate = () => {
+    const newErrors: Record<string, string> = {};
+    if (!formData.title.trim()) newErrors.title = 'Title is required';
+    if (!formData.description.trim()) newErrors.description = 'Description is required';
+    if (!formData.location.trim()) newErrors.location = 'Location is required';
+    if (!formData.startDate) newErrors.startDate = 'Start date is required';
+    if (!formData.startTime) newErrors.startTime = 'Start time is required';
+    if (!formData.endDate) newErrors.endDate = 'End date is required';
+    if (!formData.endTime) newErrors.endTime = 'End time is required';
+    
+    const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
+    const endDateTime = new Date(`${formData.endDate}T${formData.endTime}`);
+    if (startDateTime >= endDateTime) {
+      newErrors.endDate = 'End date/time must be after start date/time';
+    }
+    if (formData.capacity && (isNaN(Number(formData.capacity)) || Number(formData.capacity) <= 0)) {
+      newErrors.capacity = 'Capacity must be a positive number';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!validate()) {
+      toast.error('Please fix the errors in the form');
+      return;
+    }
+
+    if (!user) {
+      toast.error('You must be logged in to create an event');
+      return;
+    }
+
+    let imageUrl = formData.image || '';
+    if (imageFile) {
+        try {
+            imageUrl = await uploadToCloudinary(imageFile);
+        } catch (error) {
+            toast.error("Image upload failed. Please try again.");
+            return;
+        }
+    }
+
+    const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
+    const endDateTime = new Date(`${formData.endDate}T${formData.endTime}`);
+    const tags = formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
+
+    const eventData: Partial<Event> = {
+      title: formData.title,
+      description: formData.description,
+      location: formData.location,
+      startDate: startDateTime.toISOString(),
+      endDate: endDateTime.toISOString(),
+      organizerId: user.id, // Or clubId if the user is a club
+      organizerName: user.name,
+      organizerType: user.role,
+      createdBy: user.id,
+      capacity: formData.capacity ? parseInt(formData.capacity) : undefined,
+      image: imageUrl || undefined,
+      tags,
+    };
+
+    try {
+      if (isEditMode && id) {
+        await updateEvent(id, eventData);
+        toast.success('Event updated successfully!');
+      } else {
+        await createEvent(eventData);
+        // createEvent already shows a toast
+      }
+      navigate('/events');
+    } catch (error) {
+      console.error('Error creating/updating event:', error);
+      toast.error('Failed to save the event. Please try again.');
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center mb-4">
@@ -245,8 +216,8 @@ const CreateEvent: React.FC = () => {
                 rows={5}
                 placeholder="Describe your event"
                 value={formData.description}
-                onChange={handleChange}
-                className={`w-full rounded-md shadow-sm focus:ring-2 focus:ring-offset-0 transition-colors focus:outline-none ${
+                onChange={handleChange as any}
+                className={`w-full rounded-md shadow-sm focus:ring-2 focus:ring-offset-0 transition-colors focus:outline-none p-2 border ${
                   errors.description
                     ? 'border-error-500 focus:border-error-500 focus:ring-error-500/20'
                     : 'border-neutral-300 focus:border-primary-500 focus:ring-primary-500/20'
@@ -272,87 +243,24 @@ const CreateEvent: React.FC = () => {
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1">
-                  Start Date
-                </label>
-                <input
-                  type="date"
-                  name="startDate"
-                  value={formData.startDate}
-                  onChange={handleChange}
-                  className={`w-full rounded-md shadow-sm focus:ring-2 focus:ring-offset-0 transition-colors focus:outline-none ${
-                    errors.startDate
-                      ? 'border-error-500 focus:border-error-500 focus:ring-error-500/20'
-                      : 'border-neutral-300 focus:border-primary-500 focus:ring-primary-500/20'
-                  }`}
-                  required
-                />
-                {errors.startDate && (
-                  <p className="mt-1 text-sm text-error-500">{errors.startDate}</p>
-                )}
+                <label className="block text-sm font-medium text-neutral-700 mb-1">Start Date</label>
+                <input type="date" name="startDate" value={formData.startDate} onChange={handleChange} className={`w-full p-2 border rounded-md shadow-sm ${errors.startDate ? 'border-error-500' : 'border-neutral-300'}`} required />
+                {errors.startDate && <p className="mt-1 text-sm text-error-500">{errors.startDate}</p>}
               </div>
-              
               <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1">
-                  Start Time
-                </label>
-                <input
-                  type="time"
-                  name="startTime"
-                  value={formData.startTime}
-                  onChange={handleChange}
-                  className={`w-full rounded-md shadow-sm focus:ring-2 focus:ring-offset-0 transition-colors focus:outline-none ${
-                    errors.startTime
-                      ? 'border-error-500 focus:border-error-500 focus:ring-error-500/20'
-                      : 'border-neutral-300 focus:border-primary-500 focus:ring-primary-500/20'
-                  }`}
-                  required
-                />
-                {errors.startTime && (
-                  <p className="mt-1 text-sm text-error-500">{errors.startTime}</p>
-                )}
+                <label className="block text-sm font-medium text-neutral-700 mb-1">Start Time</label>
+                <input type="time" name="startTime" value={formData.startTime} onChange={handleChange} className={`w-full p-2 border rounded-md shadow-sm ${errors.startTime ? 'border-error-500' : 'border-neutral-300'}`} required />
+                {errors.startTime && <p className="mt-1 text-sm text-error-500">{errors.startTime}</p>}
               </div>
-              
               <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1">
-                  End Date
-                </label>
-                <input
-                  type="date"
-                  name="endDate"
-                  value={formData.endDate}
-                  onChange={handleChange}
-                  className={`w-full rounded-md shadow-sm focus:ring-2 focus:ring-offset-0 transition-colors focus:outline-none ${
-                    errors.endDate
-                      ? 'border-error-500 focus:border-error-500 focus:ring-error-500/20'
-                      : 'border-neutral-300 focus:border-primary-500 focus:ring-primary-500/20'
-                  }`}
-                  required
-                />
-                {errors.endDate && (
-                  <p className="mt-1 text-sm text-error-500">{errors.endDate}</p>
-                )}
+                <label className="block text-sm font-medium text-neutral-700 mb-1">End Date</label>
+                <input type="date" name="endDate" value={formData.endDate} onChange={handleChange} className={`w-full p-2 border rounded-md shadow-sm ${errors.endDate ? 'border-error-500' : 'border-neutral-300'}`} required />
+                {errors.endDate && <p className="mt-1 text-sm text-error-500">{errors.endDate}</p>}
               </div>
-              
               <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1">
-                  End Time
-                </label>
-                <input
-                  type="time"
-                  name="endTime"
-                  value={formData.endTime}
-                  onChange={handleChange}
-                  className={`w-full rounded-md shadow-sm focus:ring-2 focus:ring-offset-0 transition-colors focus:outline-none ${
-                    errors.endTime
-                      ? 'border-error-500 focus:border-error-500 focus:ring-error-500/20'
-                      : 'border-neutral-300 focus:border-primary-500 focus:ring-primary-500/20'
-                  }`}
-                  required
-                />
-                {errors.endTime && (
-                  <p className="mt-1 text-sm text-error-500">{errors.endTime}</p>
-                )}
+                <label className="block text-sm font-medium text-neutral-700 mb-1">End Time</label>
+                <input type="time" name="endTime" value={formData.endTime} onChange={handleChange} className={`w-full p-2 border rounded-md shadow-sm ${errors.endTime ? 'border-error-500' : 'border-neutral-300'}`} required />
+                {errors.endTime && <p className="mt-1 text-sm text-error-500">{errors.endTime}</p>}
               </div>
             </div>
           </CardBody>
@@ -376,17 +284,32 @@ const CreateEvent: React.FC = () => {
               fullWidth
             />
             
-            <Input
-              label="Image URL (optional)"
-              name="image"
-              leftIcon={<Image size={16} />}
-              placeholder="Enter image URL for your event"
-              value={formData.image}
-              onChange={handleChange}
-              error={errors.image}
-              helperText="Provide a URL to an image for your event"
-              fullWidth
-            />
+            <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
+                    Event Image
+                </label>
+                <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="w-full border border-neutral-300 rounded-md p-2 text-sm text-neutral-700
+                                file:mr-4 file:py-2 file:px-4
+                                file:rounded-md file:border-0
+                                file:text-sm file:font-semibold
+                                file:bg-primary-50 file:text-primary-700
+                                hover:file:bg-primary-100"
+                />
+                {(imageFile || formData.image) && (
+                    <div className="mt-2">
+                        <p className="text-xs text-neutral-500 mb-1">Image Preview:</p>
+                        <img
+                            src={imageFile ? URL.createObjectURL(imageFile) : formData.image}
+                            alt="Preview"
+                            className="h-32 rounded shadow object-cover"
+                        />
+                    </div>
+                )}
+            </div>
             
             <Input
               label="Tags (optional)"
@@ -402,21 +325,9 @@ const CreateEvent: React.FC = () => {
           </CardBody>
         </Card>
         
-        <Card className="bg-blue-50 border border-blue-200">
-          <CardBody className="flex items-start">
-            <Info className="w-5 h-5 text-blue-500 mt-0.5 mr-3 flex-shrink-0" />
-            <div>
-              <h3 className="font-medium text-neutral-900 mb-1">Event Approval Process</h3>
-              <p className="text-neutral-700 text-sm">
-                All events require approval from administrators before they become visible to all users.
-                You will be notified once your event is approved or if any changes are needed.
-              </p>
-            </div>
-          </CardBody>
-        </Card>
-        
         <div className="flex justify-end space-x-3">
           <Button
+            type="button"
             variant="outline"
             onClick={() => navigate('/events')}
           >

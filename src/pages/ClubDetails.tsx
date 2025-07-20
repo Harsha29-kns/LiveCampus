@@ -100,10 +100,9 @@ const ClubDetails: React.FC = () => {
   };
 
   const isAdmin = user?.role === 'admin';
-  const isFaculty = user?.role === 'faculty';
   const isPresident = user?.id === club.presidentId;
   const isFacultyAdvisor = user?.id === club.facultyAdvisorId;
-  const canEdit = isAdmin || isFaculty || isPresident || isFacultyAdvisor;
+  const canEdit = isAdmin || isPresident || isFacultyAdvisor;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -124,9 +123,9 @@ const ClubDetails: React.FC = () => {
             <CardBody>
               <div className="flex flex-col md:flex-row md:items-center">
                 {club.logo ? (
-                  <img 
-                    src={club.logo} 
-                    alt={club.name} 
+                  <img
+                    src={club.logo}
+                    alt={club.name}
                     className="w-24 h-24 rounded-full object-cover mr-6"
                   />
                 ) : (
@@ -158,7 +157,10 @@ const ClubDetails: React.FC = () => {
                       variant="outline"
                       size="sm"
                       leftIcon={<Edit size={16} />}
-                      onClick={() => navigate(`/clubs/edit/${club.id}`)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/clubs/${club.id}/edit`);
+                      }}
                     >
                       Edit
                     </Button>
@@ -183,8 +185,8 @@ const ClubDetails: React.FC = () => {
             <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
               <h2 className="text-xl font-semibold text-neutral-900">Upcoming Events</h2>
               {canEdit && (
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   size="sm"
                   leftIcon={<Calendar size={16} />}
                   onClick={() => navigate('/events/create')}
@@ -197,8 +199,8 @@ const ClubDetails: React.FC = () => {
               {clubEvents.length > 0 ? (
                 <div className="space-y-4">
                   {clubEvents.map((event) => (
-                    <div 
-                      key={event.id} 
+                    <div
+                      key={event.id}
                       className="flex flex-col sm:flex-row sm:items-center p-3 rounded-lg border border-neutral-200 hover:bg-neutral-50 cursor-pointer"
                       onClick={() => navigate(`/events/${event.id}`)}
                     >
@@ -226,7 +228,7 @@ const ClubDetails: React.FC = () => {
                   <h3 className="text-lg font-medium text-neutral-700">No upcoming events</h3>
                   <p className="text-neutral-500 mb-4">This club hasn't scheduled any events yet.</p>
                   {canEdit && (
-                    <Button 
+                    <Button
                       onClick={() => navigate('/events/create')}
                       variant="outline"
                     >
