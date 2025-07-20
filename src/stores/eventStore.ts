@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 interface EventState {
   events: Event[];
   isLoading: boolean;
-  fetchEvents: () => Promise<Event[]>;
+  fetchEvents: () => Promise<void>;
   getEventById: (id: string) => Event | undefined;
   createEvent: (eventData: Partial<Event>) => Promise<Event | null>;
   updateEvent: (id: string, eventData: Partial<Event>) => Promise<Event | null>;
@@ -16,6 +16,7 @@ interface EventState {
   rejectEvent: (id: string) => Promise<Event | null>;
   registerForEvent: (eventId: string, userId: string, registrationData?: Partial<Event>) => Promise<boolean>;
   cancelRegistration: (eventId: string, userId: string) => Promise<boolean>;
+  fetchRegisteredEvents: (userId: string) => Promise<Event[]>;
 }
 
 export const useEventStore = create<EventState>((set, get) => ({
@@ -29,12 +30,9 @@ export const useEventStore = create<EventState>((set, get) => ({
         const events = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Event));
         set({ events, isLoading: false });
       });
-      // Optional: return unsubscribe function if you want to clean up
-      return [];
     } catch (error) {
       toast.error('Failed to load events');
       set({ isLoading: false });
-      return [];
     }
   },
 
@@ -130,15 +128,13 @@ export const useEventStore = create<EventState>((set, get) => ({
   registerForEvent: async (eventId, userId, registrationData) => {
     set({ isLoading: true });
     try {
-      // Add registration document with extra fields if provided
       await addDoc(collection(db, 'eventRegistrations'), {
         eventId,
         userId,
         status: 'registered',
         registeredAt: new Date().toISOString(),
-        ...(registrationData || {}) // <-- add extra fields here
+        ...(registrationData || {})
       });
-      // Increment registeredCount
       const event = get().getEventById(eventId);
       if (event) {
         await updateDoc(doc(db, 'events', eventId), {
@@ -158,13 +154,11 @@ export const useEventStore = create<EventState>((set, get) => ({
   cancelRegistration: async (eventId, userId) => {
     set({ isLoading: true });
     try {
-      // Find registration doc and delete it
       const q = query(collection(db, 'eventRegistrations'), where('eventId', '==', eventId), where('userId', '==', userId));
       const snapshot = await getDocs(q);
       snapshot.forEach(async (registration) => {
         await deleteDoc(doc(db, 'eventRegistrations', registration.id));
       });
-      // Decrement registeredCount
       const event = get().getEventById(eventId);
       if (event && event.registeredCount > 0) {
         await updateDoc(doc(db, 'events', eventId), {
@@ -178,6 +172,30 @@ export const useEventStore = create<EventState>((set, get) => ({
       toast.error('Failed to cancel registration');
       set({ isLoading: false });
       return false;
+    }
+  },
+
+  fetchRegisteredEvents: async (userId: string) => {
+    set({ isLoading: true });
+    try {
+        const registrationsQuery = query(collection(db, 'eventRegistrations'), where('userId', '==', userId));
+        const registrationSnapshots = await getDocs(registrationsQuery);
+        const eventIds = registrationSnapshots.docs.map(doc => doc.data().eventId);
+
+        if (eventIds.length === 0) {
+            set({ isLoading: false });
+            return [];
+        }
+
+        const events = get().events;
+        const registeredEvents = events.filter(event => eventIds.includes(event.id));
+        
+        set({ isLoading: false });
+        return registeredEvents;
+    } catch (error) {
+        toast.error('Failed to load registered events');
+        set({ isLoading: false });
+        return [];
     }
   },
 }));

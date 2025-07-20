@@ -5,7 +5,7 @@ import Button from '../components/ui/Button';
 import { Card, CardBody } from '../components/ui/Card';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db } from '../firebaseConfig';
-import { doc, updateDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, updateDoc, collection, getDocs, deleteDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 
 const AdminUserManagement: React.FC = () => {

@@ -1,10 +1,12 @@
 import React, { useEffect } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
+import Maintenance from './pages/Maintenance';
 
 // Layouts
 import PublicLayout from './layouts/PublicLayout';
 import DashboardLayout from './layouts/DashboardLayout';
+import { Analytics } from "@vercel/analytics/next"
 
 // Pages
 import Login from './pages/Login';
@@ -20,7 +22,9 @@ import NotFound from './pages/NotFound';
 import AdminUserManagement from './pages/AdminUserManagement';
 import ForgotPassword from './pages/ForgotPassword';
 import ChangePassword from './pages/ChangePassword';
-import CreateClub from './pages/CreateClub'; // or EditClub if you have a separate file
+import CreateClub from './pages/CreateClub';
+import Contact from './pages/Contact';
+import About from './pages/About';
 
 // Guards
 import AuthGuard from './guards/AuthGuard';
@@ -31,9 +35,16 @@ function App() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const maintenanceMode = import.meta.env.VITE_MAINTENANCE_MODE === 'true';
+
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
+
+  // 🔧 Show maintenance screen if env variable is set
+  if (maintenanceMode) {
+    return <Maintenance />;
+  }
 
   return (
     <Routes>
@@ -42,6 +53,8 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/contact" element={<Contact />} />
+        <Route path="/about" element={<About />} />
       </Route>
 
       {/* Protected Routes */}
@@ -86,8 +99,7 @@ function App() {
         />
         <Route path="/change-password" element={<ChangePassword />} />
         <Route path="/clubs/create" element={<CreateClub />} />
-        <Route path="/clubs/:id/edit" element={<CreateClub />} /> {/* or <EditClub /> if you have it */}
-        
+        <Route path="/clubs/:id/edit" element={<CreateClub />} />
       </Route>
 
       {/* Not Found */}

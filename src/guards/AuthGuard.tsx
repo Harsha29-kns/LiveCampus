@@ -10,9 +10,7 @@ const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
   const { isAuthenticated, user, checkAuth } = useAuthStore();
   const location = useLocation();
 
-  useEffect(() => {
-    checkAuth();
-  }, [checkAuth]);
+  
 
   if (!isAuthenticated) {
     // Redirect to login page but save the attempted location

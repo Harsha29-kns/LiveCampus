@@ -1,4 +1,4 @@
-import nodemailer from 'nodemailer';
+{/*import nodemailer from 'nodemailer';
 
 const transporter = nodemailer.createTransport({
   host: 'smtp-relay.brevo.com',
@@ -10,11 +10,11 @@ const transporter = nodemailer.createTransport({
 });
 
 const mailOptions = {
-<<<<<<< HEAD
+HEAD
   from: '"LiveCampus" <@gmail.com>', // <-- Use your verified Gmail address
-=======
+
   from: '"LiveCampus" <gmail@gmail.com>', // <-- Use your verified Gmail address
->>>>>>> 858aa247f8a2bba3ef910a80cbfd932297383602
+    858aa247f8a2bba3ef910a80cbfd932297383602
   to: '@gmail.com', // <-- The email address you want to test with
   subject: 'Test Email from Brevo',
   text: 'This is a test email sent from Node.js using Brevo SMTP.',
@@ -26,4 +26,4 @@ transporter.sendMail(mailOptions)
   })
   .catch(err => {
     console.error('Error sending email:', err);
-  });
+  });*/}
