@@ -1,378 +1,195 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, Users, Clock, Bell, ChevronRight, PlusCircle, Star, UserCheck } from 'lucide-react';
+import { Calendar, Users, Clock, Bell, ChevronRight, PlusCircle, Star, UserCheck, BarChart2, Activity } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useEventStore } from '../stores/eventStore';
 import { useClubStore } from '../stores/clubStore';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isToday } from 'date-fns';
+import { Event } from '../types';
 
 const Dashboard: React.FC = () => {
   const { user } = useAuthStore();
-  const { events, fetchEvents } = useEventStore();
+  const { events, fetchEvents, fetchRegisteredEvents } = useEventStore();
   const { clubs, fetchClubs } = useClubStore();
   const [isLoading, setIsLoading] = useState(true);
-  const [myRegistrationsCount, setMyRegistrationsCount] = useState(0);
+  const [registeredEvents, setRegisteredEvents] = useState<Event[]>([]);
   const navigate = useNavigate();
 
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
       await Promise.all([fetchEvents(), fetchClubs()]);
+      if (user?.role === 'student' && user.id) {
+        const regs = await fetchRegisteredEvents(user.id);
+        setRegisteredEvents(regs);
+      }
       setIsLoading(false);
     };
     loadData();
-  }, [fetchEvents, fetchClubs]);
+  }, [fetchEvents, fetchClubs, user, fetchRegisteredEvents]);
 
-  // Stats
-  const totalEvents = events.length;
-  const totalClubs = clubs.length;
-  const upcomingEventsCount = events.filter(
-    event => new Date(event.endDate) > new Date() && event.status === 'approved'
-  ).length;
+  // --- STATS CALCULATION ---
+  const approvedEvents = events.filter(e => e.status === 'approved');
+  const upcomingEvents = approvedEvents.filter(e => new Date(e.endDate) > new Date());
   const pendingEventsCount = events.filter(event => event.status === 'pending').length;
+  const myClub = user?.role === 'club' ? clubs.find(c => c.id === user.clubId) : null;
+  const myOrganizedEvents = user ? events.filter(e => e.organizerId === (user.role === 'club' ? user.clubId : user.id)) : [];
+  const totalRegistrations = myOrganizedEvents.reduce((total, event) => total + event.registeredCount, 0);
+  const eventsTodayCount = approvedEvents.filter(e => isToday(parseISO(e.startDate))).length;
 
-  // Show all approved events (including old/past)
-  const allApprovedEvents = events.filter(event => event.status === 'approved')
-    .sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
 
-  // Optionally, separate upcoming and past events
-  const upcomingEvents = allApprovedEvents.filter(
-    event => new Date(event.endDate) > new Date()
-  ).slice(0, 3);
+  const StatCard = ({ title, value, icon, colorClass, onClick }: { title: string, value: string | number, icon: React.ReactNode, colorClass: string, onClick?: () => void }) => (
+    <Card className={`text-white shadow-lg hover:shadow-xl transition-shadow ${onClick ? 'cursor-pointer' : ''}`} onClick={onClick}>
+      <CardBody className={`flex items-center p-4 ${colorClass}`}>
+        <div className="p-3 bg-white bg-opacity-20 rounded-lg mr-4">{icon}</div>
+        <div>
+          <div className="text-sm font-medium uppercase opacity-80">{title}</div>
+          <div className="text-3xl font-bold">{value}</div>
+        </div>
+      </CardBody>
+    </Card>
+  );
 
-  const pastEvents = allApprovedEvents.filter(
-    event => new Date(event.endDate) <= new Date()
-  ).slice(0, 3);
+  const QuickActionButton = ({ label, icon, onClick }: { label: string, icon: React.ReactNode, onClick: () => void }) => (
+    <Button variant="outline" onClick={onClick} className="w-full justify-start text-left py-3">
+      <span className="mr-3">{icon}</span>
+      {label}
+    </Button>
+  );
 
-  // Pending Events (Admin)
-  const pendingEvents = events.filter(event => event.status === 'pending').slice(0, 3);
-
-  // Popular Clubs
-  const popularClubs = [...clubs].sort((a, b) => b.memberCount - a.memberCount).slice(0, 4);
-
-  // Faculty-specific data
-  const facultyClubs = clubs.filter(club => club.facultyAdvisorId === user.id);
-  const facultyClubIds = facultyClubs.map(club => club.id);
-  const myClubId = user.clubId;
-  const visibleEvents = events.filter(event => event.status === 'approved');
+  const EventListItem = ({ event, isRegistered = false }: { event: Event, isRegistered?: boolean }) => (
+    <div
+      key={event.id}
+      className="flex items-center p-3 rounded-lg hover:bg-neutral-50 cursor-pointer"
+      onClick={() => navigate(`/events/${event.id}`)}
+    >
+      <div className="w-16 text-center mr-4">
+        <div className="text-lg font-bold text-primary-600">{format(parseISO(event.startDate), 'd')}</div>
+        <div className="text-sm text-neutral-500 uppercase">{format(parseISO(event.startDate), 'MMM')}</div>
+      </div>
+      <div className="flex-grow">
+        <h4 className="font-semibold text-neutral-800">{event.title}</h4>
+        <p className="text-sm text-neutral-500">{event.location}</p>
+      </div>
+      {isRegistered && <Badge variant="success" size="sm">Registered</Badge>}
+      <ChevronRight className="w-5 h-5 text-neutral-400 ml-2" />
+    </div>
+  );
 
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
-        <div>
-          <h1 className="text-3xl font-extrabold text-primary-800 mb-1">Welcome{user?.name ? `, ${user.name}` : ''}!</h1>
-          <p className="text-neutral-600 text-lg">
-            {user?.role === 'admin' && 'Admin Dashboard: Manage events, clubs, and approvals.'}
-            {user?.role === 'club' && 'Club Dashboard: Track your club’s events and members.'}
-            {user?.role === 'faculty' && 'Faculty Dashboard: Oversee and support student activities.'}
-            {user?.role === 'student' && 'Student Dashboard: Discover and join campus events!'}
-          </p>
-        </div>
-        {(user?.role === 'admin' || user?.role === 'faculty' || user?.role === 'club') && (
-          <Button
-            onClick={() => navigate('/events/create')}
-            leftIcon={<PlusCircle size={18} />}
-            className="mt-4 sm:mt-0"
-          >
-            Create Event
-          </Button>
-        )}
+      <div>
+        <h1 className="text-3xl font-extrabold text-neutral-800">Welcome, {user?.name}!</h1>
+        <p className="text-neutral-500 mt-1">Here's your campus summary for today.</p>
       </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="bg-gradient-to-br from-blue-500 to-blue-700 text-white shadow-lg">
-          <CardBody>
-            <div className="flex items-center">
-              <Calendar size={28} className="mr-4" />
-              <div>
-                <div className="text-lg font-semibold">Total Events</div>
-                <div className="text-2xl font-bold">{totalEvents}</div>
-              </div>
-            </div>
-          </CardBody>
-        </Card>
-        <Card className="bg-gradient-to-br from-green-500 to-green-700 text-white shadow-lg">
-          <CardBody>
-            <div className="flex items-center">
-              <Users size={28} className="mr-4" />
-              <div>
-                <div className="text-lg font-semibold">Active Clubs</div>
-                <div className="text-2xl font-bold">{totalClubs}</div>
-              </div>
-            </div>
-          </CardBody>
-        </Card>
-        <Card className="bg-gradient-to-br from-purple-500 to-purple-700 text-white shadow-lg">
-          <CardBody>
-            <div className="flex items-center">
-              <Clock size={28} className="mr-4" />
-              <div>
-                <div className="text-lg font-semibold">Upcoming Events</div>
-                <div className="text-2xl font-bold">{upcomingEventsCount}</div>
-              </div>
-            </div>
-          </CardBody>
-        </Card>
-        {(user?.role === 'admin' || user?.role === 'faculty' || user?.role === 'club') && (
-          <Card className="bg-gradient-to-br from-yellow-500 to-yellow-700 text-white shadow-lg cursor-pointer"
-            onClick={() => navigate('/events?filter=pending')}
-          >
-            <CardBody>
-              <div className="flex items-center">
-                <Bell size={28} className="mr-4" />
-                <div>
-                  <div className="text-lg font-semibold">Pending Approvals</div>
-                  <div className="text-2xl font-bold">{pendingEventsCount}</div>
-                </div>
-              </div>
-            </CardBody>
-          </Card>
-        )}
-        {user?.role === 'student' && (
-          <Card className="bg-gradient-to-br from-pink-500 to-pink-700 text-white shadow-lg">
-            <CardBody>
-              <div className="flex items-center">
-                <UserCheck size={28} className="mr-4" />
-                <div>
-                  <div className="text-lg font-semibold">My Registrations</div>
-                  <div className="text-2xl font-bold">{myRegistrationsCount}</div>
-                </div>
-              </div>
-            </CardBody>
-          </Card>
-        )}
+        <StatCard title="Upcoming Events" value={upcomingEvents.length} icon={<Calendar size={24} />} colorClass="bg-gradient-to-br from-blue-500 to-blue-600" onClick={() => navigate('/events')} />
+        <StatCard title="Active Clubs" value={clubs.length} icon={<Users size={24} />} colorClass="bg-gradient-to-br from-green-500 to-green-600" onClick={() => navigate('/clubs')} />
+        
+        {/* Role-specific stat cards */}
+        {user?.role === 'student' && <StatCard title="My Registrations" value={registeredEvents.length} icon={<UserCheck size={24} />} colorClass="bg-gradient-to-br from-purple-500 to-purple-600" onClick={() => navigate('/profile')} />}
+        
+        {(user?.role === 'faculty' || user?.role === 'club') && <StatCard title="My Events" value={myOrganizedEvents.length} icon={<Activity size={24} />} colorClass="bg-gradient-to-br from-purple-500 to-purple-600" />}
+        
+        {user?.role === 'admin' && <StatCard title="Events Today" value={eventsTodayCount} icon={<Clock size={24} />} colorClass="bg-gradient-to-br from-purple-500 to-purple-600" onClick={() => navigate('/events')} />}
+
+        {(user?.role === 'admin' || user?.role === 'faculty' || user?.role === 'club') && <StatCard title="Pending Events" value={pendingEventsCount} icon={<Bell size={24} />} colorClass="bg-gradient-to-br from-yellow-500 to-yellow-600" onClick={() => navigate('/events')} />}
+        
+        {(user?.role === 'faculty' || user?.role === 'club') && <StatCard title="Total Registrations" value={totalRegistrations} icon={<BarChart2 size={24} />} colorClass="bg-gradient-to-br from-indigo-500 to-indigo-600" />}
       </div>
 
-      {/* Upcoming Events */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-2xl font-bold text-primary-800">Upcoming Events</h2>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate('/events')}
-            rightIcon={<ChevronRight size={16} />}
-          >
-            View All
-          </Button>
-        </div>
-        {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {[1, 2, 3].map(i => (
-              <Card key={i} className="animate-pulse h-48" />
-            ))}
-          </div>
-        ) : upcomingEvents.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {upcomingEvents.map(event => (
-              <Card
-                key={event.id}
-                className="hover:shadow-xl transition-shadow cursor-pointer"
-                onClick={() => navigate(`/events/${event.id}`)}
-              >
-                {event.image && (
-                  <div className="h-40 w-full overflow-hidden rounded-t-lg">
-                    <img src={event.image} alt={event.title} className="w-full h-full object-cover" />
-                  </div>
-                )}
-                <CardBody>
-                  <h3 className="text-lg font-bold text-neutral-900 mb-1">{event.title}</h3>
-                  <div className="text-sm text-neutral-500 mb-2">
-                    {format(parseISO(event.startDate), 'MMM d, yyyy • h:mm a')}
-                  </div>
-                  <div className="text-sm text-neutral-700 line-clamp-2 mb-2">{event.description}</div>
-                  <div className="flex items-center justify-between">
-                    <Badge variant="primary" size="sm">{event.organizerType}</Badge>
-                    <span className="text-xs text-neutral-500">{event.registeredCount} registered</span>
-                  </div>
-                </CardBody>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <Card>
-            <CardBody className="text-center py-8">
-              <Calendar className="h-10 w-10 text-neutral-400 mx-auto mb-2" />
-              <h3 className="text-lg font-medium text-neutral-700">No upcoming events</h3>
-              <p className="text-neutral-500 mb-4">Check back later for new events or create one yourself!</p>
-              {(user?.role === 'admin' || user?.role === 'faculty' || user?.role === 'club') && (
-                <Button onClick={() => navigate('/events/create')} variant="outline">
-                  Create Event
-                </Button>
-              )}
-            </CardBody>
-          </Card>
-        )}
-      </div>
-
-      {/* Past Events */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-2xl font-bold text-primary-800">Past Events</h2>
-        </div>
-        {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {[1, 2, 3].map(i => (
-              <Card key={i} className="animate-pulse h-48" />
-            ))}
-          </div>
-        ) : pastEvents.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {pastEvents.map(event => (
-              <Card
-                key={event.id}
-                className="hover:shadow-xl transition-shadow cursor-pointer"
-                onClick={() => navigate(`/events/${event.id}`)}
-              >
-                {event.image && (
-                  <div className="h-40 w-full overflow-hidden rounded-t-lg">
-                    <img src={event.image} alt={event.title} className="w-full h-full object-cover" />
-                  </div>
-                )}
-                <CardBody>
-                  <h3 className="text-lg font-bold text-neutral-900 mb-1">{event.title}</h3>
-                  <div className="text-sm text-neutral-500 mb-2">
-                    {format(parseISO(event.startDate), 'MMM d, yyyy • h:mm a')}
-                  </div>
-                  <div className="text-sm text-neutral-700 line-clamp-2 mb-2">{event.description}</div>
-                  <div className="flex items-center justify-between">
-                    <Badge variant="primary" size="sm">{event.organizerType}</Badge>
-                    <span className="text-xs text-neutral-500">{event.registeredCount} registered</span>
-                  </div>
-                </CardBody>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <Card>
-            <CardBody className="text-center py-8">
-              <Calendar className="h-10 w-10 text-neutral-400 mx-auto mb-2" />
-              <h3 className="text-lg font-medium text-neutral-700">No past events</h3>
-              <p className="text-neutral-500 mb-4">No previous events found.</p>
-            </CardBody>
-          </Card>
-        )}
-      </div>
-
-      {/* Pending Approvals (Admin Only) */}
-      {user?.role === 'admin' && (
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-2xl font-bold text-primary-800">Pending Approvals</h2>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate('/events?filter=pending')}
-              rightIcon={<ChevronRight size={16} />}
-            >
-              View All
-            </Button>
-          </div>
-          {isLoading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map(i => (
-                <Card key={i} className="animate-pulse h-20" />
-              ))}
-            </div>
-          ) : pendingEvents.length > 0 ? (
-            <div className="space-y-3">
-              {pendingEvents.map(event => (
-                <Card key={event.id}>
-                  <CardBody className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <h3 className="text-lg font-semibold text-neutral-900">{event.title}</h3>
-                      <p className="text-sm text-neutral-500">
-                        Submitted by {event.organizerName} • {format(parseISO(event.createdAt), 'MMM d, yyyy')}
-                      </p>
-                    </div>
-                    <div className="flex items-center mt-3 sm:mt-0">
-                      <Badge variant="warning" className="mr-3">Pending</Badge>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => navigate(`/events/${event.id}`)}
-                      >
-                        Review
-                      </Button>
-                    </div>
-                  </CardBody>
-                </Card>
-              ))}
-            </div>
-          ) : (
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Main Content Area */}
+        <div className="lg:col-span-2 space-y-8">
+          {/* My Registered Events (Student) */}
+          {user?.role === 'student' && registeredEvents.length > 0 && (
             <Card>
-              <CardBody className="text-center py-6">
-                <h3 className="text-lg font-medium text-neutral-700">No pending approvals</h3>
-                <p className="text-neutral-500">All event requests have been processed.</p>
+              <CardHeader>
+                <h2 className="text-xl font-bold text-neutral-800">My Upcoming Registered Events</h2>
+              </CardHeader>
+              <CardBody className="divide-y divide-neutral-100">
+                {registeredEvents.filter(e => new Date(e.endDate) > new Date()).slice(0, 4).map(event => (
+                  <EventListItem key={event.id} event={event} isRegistered />
+                ))}
               </CardBody>
             </Card>
           )}
-        </div>
-      )}
 
-      {/* Popular Clubs */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-2xl font-bold text-primary-800">Popular Clubs</h2>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => navigate('/clubs')}
-            rightIcon={<ChevronRight size={16} />}
-          >
-            View All
-          </Button>
-        </div>
-        {isLoading ? (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {[1, 2, 3, 4].map(i => (
-              <Card key={i} className="animate-pulse h-32" />
-            ))}
-          </div>
-        ) : popularClubs.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {popularClubs.map(club => (
-              <Card
-                key={club.id}
-                className="hover:shadow-xl transition-shadow cursor-pointer"
-                onClick={() => navigate(`/clubs/${club.id}`)}
-              >
-                <CardBody className="flex flex-col items-center text-center p-6">
-                  {club.logo ? (
-                    <img
-                      src={club.logo}
-                      alt={club.name}
-                      className="w-16 h-16 rounded-full object-cover mb-3"
-                    />
-                  ) : (
-                    <div className="w-16 h-16 rounded-full bg-primary-100 flex items-center justify-center mb-3">
-                      <span className="text-xl font-bold text-primary-700">
-                        {club.name.charAt(0)}
-                      </span>
+          {/* My Club Info (Club Admins) */}
+          {user?.role === 'club' && myClub && (
+             <Card>
+              <CardHeader>
+                <h2 className="text-xl font-bold text-neutral-800">My Club: {myClub.name}</h2>
+              </CardHeader>
+              <CardBody>
+                <div className="flex items-center">
+                    {myClub.logo ? <img src={myClub.logo} alt={myClub.name} className="w-16 h-16 rounded-full object-cover mr-4" /> : <div className="w-16 h-16 rounded-full bg-primary-100 flex items-center justify-center mr-4"><Users size={24} className="text-primary-600"/></div>}
+                    <div>
+                        <p className="text-neutral-600"><span className="font-semibold">Members:</span> {myClub.memberCount}</p>
+                        <p className="text-neutral-600"><span className="font-semibold">Faculty Advisor:</span> {myClub.facultyAdvisor}</p>
                     </div>
-                  )}
-                  <h3 className="text-lg font-semibold text-neutral-900">{club.name}</h3>
-                  <div className="flex items-center justify-center gap-2 mt-1">
-                    <Star size={16} className="text-yellow-400" />
-                    <span className="text-sm text-neutral-500">{club.memberCount} members</span>
-                  </div>
-                </CardBody>
-              </Card>
-            ))}
-          </div>
-        ) : (
+                </div>
+              </CardBody>
+            </Card>
+          )}
+
+          {/* Upcoming Events List */}
           <Card>
-            <CardBody className="text-center py-6">
-              <h3 className="text-lg font-medium text-neutral-700">No clubs found</h3>
-              <p className="text-neutral-500">Be the first to create a club!</p>
+            <CardHeader className="flex justify-between items-center">
+              <h2 className="text-xl font-bold text-neutral-800">What's Happening Soon</h2>
+              <Button variant="ghost" size="sm" onClick={() => navigate('/events')} rightIcon={<ChevronRight size={16} />}>View All</Button>
+            </CardHeader>
+            <CardBody className="divide-y divide-neutral-100">
+              {upcomingEvents.length > 0 ? (
+                upcomingEvents.slice(0, 5).map(event => <EventListItem key={event.id} event={event} />)
+              ) : (
+                <div className="text-center py-8">
+                  <Calendar className="h-12 w-12 text-neutral-300 mx-auto mb-3" />
+                  <h3 className="text-lg font-medium text-neutral-700">No upcoming events</h3>
+                  <p className="text-neutral-500">Check back later for new events!</p>
+                </div>
+              )}
             </CardBody>
           </Card>
-        )}
+        </div>
+
+        {/* Sidebar / Quick Actions */}
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <h3 className="text-lg font-semibold text-neutral-800">Quick Actions</h3>
+            </CardHeader>
+            <CardBody className="space-y-3">
+              {(user?.role === 'admin' || user?.role === 'faculty' || user?.role === 'club') && <QuickActionButton label="Create New Event" icon={<PlusCircle size={18} />} onClick={() => navigate('/events/create')} />}
+              <QuickActionButton label="Browse All Events" icon={<Calendar size={18} />} onClick={() => navigate('/events')} />
+              <QuickActionButton label="Explore Clubs" icon={<Users size={18} />} onClick={() => navigate('/clubs')} />
+              <QuickActionButton label="View My Profile" icon={<UserCheck size={18} />} onClick={() => navigate('/profile')} />
+            </CardBody>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <h3 className="text-lg font-semibold text-neutral-800">Popular Clubs</h3>
+            </CardHeader>
+            <CardBody className="space-y-3">
+              {clubs.sort((a, b) => b.memberCount - a.memberCount).slice(0, 4).map(club => (
+                <div key={club.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-neutral-50 cursor-pointer" onClick={() => navigate(`/clubs/${club.id}`)}>
+                   <div className="flex items-center">
+                    {club.logo ? <img src={club.logo} alt={club.name} className="w-8 h-8 rounded-full object-cover mr-3" /> : <div className="w-8 h-8 rounded-full bg-secondary-100 flex items-center justify-center mr-3"><Star size={14} className="text-secondary-600"/></div>}
+                    <span className="font-medium text-neutral-700">{club.name}</span>
+                  </div>
+                  <Badge variant='neutral' size='sm'>{club.memberCount} members</Badge>
+                </div>
+              ))}
+            </CardBody>
+          </Card>
+        </div>
       </div>
     </div>
   );

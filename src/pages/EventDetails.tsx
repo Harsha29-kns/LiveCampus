@@ -38,7 +38,7 @@ const EventDetails: React.FC = () => {
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | undefined>(undefined);
   const [club, setClub] = useState<any>(null);
   const qrRef = useRef<HTMLDivElement>(null);
-  
+
   useEffect(() => {
     if (!event) {
       fetchEvents().then(() => {
@@ -150,12 +150,12 @@ const EventDetails: React.FC = () => {
 
   const handleDelete = async () => {
     if (!id) return;
-    
+
     if (window.confirm('Are you sure you want to delete this event? This action cannot be undone.')) {
       setIsActionLoading(true);
       const success = await deleteEvent(id);
       setIsActionLoading(false);
-      
+
       if (success) {
         toast.success('Event deleted successfully');
         navigate('/events');
@@ -165,11 +165,11 @@ const EventDetails: React.FC = () => {
 
   const handleRegister = async () => {
     if (!id || !user) return;
-    
+
     setIsActionLoading(true);
     const success = await registerForEvent(id, user.id);
     setIsActionLoading(false);
-    
+
     if (success) {
       setIsRegistered(true);
       toast.success('Successfully registered for event');
@@ -183,11 +183,11 @@ const EventDetails: React.FC = () => {
 
   const handleCancelRegistration = async () => {
     if (!id || !user) return;
-    
+
     setIsActionLoading(true);
     const success = await cancelRegistration(id, user.id);
     setIsActionLoading(false);
-    
+
     if (success) {
       setIsRegistered(false);
       toast.success('Registration cancelled');
@@ -282,8 +282,8 @@ const EventDetails: React.FC = () => {
   };
 
   const isAdmin = user?.role === 'admin';
-  const isOrganizer = user?.id === event.createdBy || 
-                      (user?.role === 'admin') || 
+  const isOrganizer = user?.id === event.createdBy ||
+                      (user?.role === 'admin') ||
                       (user?.role === event.organizerType && user?.id === event.organizerId);
   const isPending = event.status === 'pending';
   const isApproved = event.status === 'approved';
@@ -394,7 +394,7 @@ const EventDetails: React.FC = () => {
           Back to Events
         </Button>
       </div>
-      
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           {/* Event Header */}
@@ -415,7 +415,7 @@ const EventDetails: React.FC = () => {
                     Organized by {event.organizerName}
                   </p>
                 </div>
-                
+
                 {isOrganizer && isApproved && !isPast && (
                   <div className="mt-4 md:mt-0 flex space-x-2">
                     <Button
@@ -440,18 +440,18 @@ const EventDetails: React.FC = () => {
               </div>
             </CardBody>
           </Card>
-          
+
           {/* Event Image */}
           {event.image && (
             <div className="rounded-lg overflow-hidden shadow-sm">
-              <img 
-                src={event.image} 
-                alt={event.title} 
+              <img
+                src={event.image}
+                alt={event.title}
                 className="w-full h-auto object-cover"
               />
             </div>
           )}
-          
+
           {/* Event Description */}
           <Card>
             <CardHeader>
@@ -461,7 +461,7 @@ const EventDetails: React.FC = () => {
               <p className="text-neutral-700 whitespace-pre-line">
                 {event.description}
               </p>
-              
+
               {event.tags && event.tags.length > 0 && (
                 <div className="mt-4 flex flex-wrap gap-2">
                   {event.tags.map((tag, index) => (
@@ -473,7 +473,7 @@ const EventDetails: React.FC = () => {
               )}
             </CardBody>
           </Card>
-          
+
           {/* Admin Actions for Pending Events */}
           {isAdmin && isPending && (
             <Card className="border border-yellow-200 bg-yellow-50">
@@ -503,7 +503,7 @@ const EventDetails: React.FC = () => {
             </Card>
           )}
         </div>
-        
+
         <div className="space-y-6">
           {/* Event Details */}
           <Card>
@@ -523,7 +523,7 @@ const EventDetails: React.FC = () => {
                   </p>
                 </div>
               </div>
-              
+
               <div className="flex items-start">
                 <MapPin className="w-5 h-5 text-neutral-500 mt-0.5 mr-3" />
                 <div>
@@ -531,7 +531,7 @@ const EventDetails: React.FC = () => {
                   <p className="text-neutral-700">{event.location}</p>
                 </div>
               </div>
-              
+
               <div className="flex items-start">
                 <Users className="w-5 h-5 text-neutral-500 mt-0.5 mr-3" />
                 <div>
@@ -549,7 +549,7 @@ const EventDetails: React.FC = () => {
               </div>
             </CardBody>
           </Card>
-          
+
           {/* Registration Card */}
           {isApproved && !isPast && !isCancelled && (
             <Card>
@@ -636,7 +636,7 @@ const EventDetails: React.FC = () => {
                     )}
                   </>
                 )}
-                
+
                 {isRegistered && user?.role === 'student' && (
                   <div className="flex flex-col items-center mt-4">
                     <p className="mb-2 text-neutral-700">Show this QR code at the event for attendance:</p>
@@ -665,7 +665,7 @@ const EventDetails: React.FC = () => {
               </CardBody>
             </Card>
           )}
-          
+
           {/* Share Button */}
           <Button
             variant="outline"
@@ -675,9 +675,9 @@ const EventDetails: React.FC = () => {
           >
             Share Event
           </Button>
-          
+
           {/* Conditional rendering for management buttons */}
-          {isApproved && (user?.role === 'admin' || user?.role === 'faculty' || user?.role === 'club') && (
+          {isApproved && isOrganizer && (
             <>
               {/* Download Excel Button */}
               <Button
@@ -688,7 +688,7 @@ const EventDetails: React.FC = () => {
               >
                 Download Registrations (Excel)
               </Button>
-              
+
               {/* Download Attendance Excel Button */}
               <Button
                 variant="outline"
@@ -698,7 +698,7 @@ const EventDetails: React.FC = () => {
               >
                 Download Attendance (Excel)
               </Button>
-              
+
               {/* Scan Attendance QR Button */}
               <Button
                 variant="outline"
@@ -745,7 +745,7 @@ const EventDetails: React.FC = () => {
               )}
             </>
           )}
-          
+
           {/* Event Status Messages */}
           {isPending && (
             <Card className="bg-yellow-50 border border-yellow-200">
@@ -757,7 +757,7 @@ const EventDetails: React.FC = () => {
               </CardBody>
             </Card>
           )}
-          
+
           {isRejected && (
             <Card className="bg-red-50 border border-red-200">
               <CardBody>
@@ -768,7 +768,7 @@ const EventDetails: React.FC = () => {
               </CardBody>
             </Card>
           )}
-          
+
           {isCancelled && (
             <Card className="bg-neutral-50 border border-neutral-200">
               <CardBody>
@@ -779,7 +779,7 @@ const EventDetails: React.FC = () => {
               </CardBody>
             </Card>
           )}
-          
+
           {isPast && (
             <Card className="bg-neutral-50 border border-neutral-200">
               <CardBody>
