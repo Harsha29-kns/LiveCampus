@@ -59,7 +59,7 @@ export const useEventStore = create<EventState>((set, get) => ({
 
         if (students.length > 0) {
           try {
-            await fetch('https://live-campus.vercel.app/api/send-event-notification', {
+            await fetch('https://live-campus.vercel.app/api/event-notification', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ event: { id: docRef.id, ...eventData }, students }),
@@ -112,7 +112,7 @@ export const useEventStore = create<EventState>((set, get) => ({
 
         if (students.length > 0) {
           try {
-            await fetch('https://live-campus.vercel.app/api/send-event-notification', {
+            await fetch('https://live-campus.vercel.app/api/event-notification', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ event: eventToApprove, students }),
