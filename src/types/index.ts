@@ -8,6 +8,7 @@ export interface User {
   avatar?: string;
   department?: string;
   year?: number;
+  clubId?: string;
   createdAt: string;
   updatedAt: string;
 }

@@ -143,13 +143,21 @@ const CreateEvent: React.FC = () => {
     const endDateTime = new Date(`${formData.endDate}T${formData.endTime}`);
     const tags = formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
 
+    // Determine the correct organizerId based on user role
+    const organizerId = user.role === 'club' ? user.clubId : user.id;
+
+    if (user.role === 'club' && !organizerId) {
+      toast.error('Could not find your club information. Please log in again to refresh your data.');
+      return;
+    }
+
     const eventData: Partial<Event> = {
       title: formData.title,
       description: formData.description,
       location: formData.location,
       startDate: startDateTime.toISOString(),
       endDate: endDateTime.toISOString(),
-      organizerId: user.id, // Or clubId if the user is a club
+      organizerId: organizerId, // Correctly set organizerId
       organizerName: user.name,
       organizerType: user.role,
       createdBy: user.id,

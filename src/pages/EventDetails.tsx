@@ -676,33 +676,30 @@ const EventDetails: React.FC = () => {
             Share Event
           </Button>
           
-          {/* Download Excel Button */}
-          {(user?.role === 'admin' || user?.role === 'faculty' || user?.role === 'club') && (
-            <Button
-              variant="outline"
-              className="mb-4"
-              onClick={handleDownloadExcel}
-              leftIcon={<Download size={16} />}
-            >
-              Download Registrations (Excel)
-            </Button>
-          )}
-          
-          {/* Download Attendance Excel Button */}
-          {(user?.role === 'admin' || user?.role === 'faculty' || user?.role === 'club') && (
-            <Button
-              variant="outline"
-              className="mb-4"
-              onClick={handleDownloadAttendanceExcel}
-              leftIcon={<Download size={16} />}
-            >
-              Download Attendance (Excel)
-            </Button>
-          )}
-          
-          {/* Scan Attendance QR Button */}
-          {(user?.role === 'admin' || user?.role === 'faculty' || user?.role === 'club') && (
+          {/* Conditional rendering for management buttons */}
+          {isApproved && (user?.role === 'admin' || user?.role === 'faculty' || user?.role === 'club') && (
             <>
+              {/* Download Excel Button */}
+              <Button
+                variant="outline"
+                className="mb-4"
+                onClick={handleDownloadExcel}
+                leftIcon={<Download size={16} />}
+              >
+                Download Registrations (Excel)
+              </Button>
+              
+              {/* Download Attendance Excel Button */}
+              <Button
+                variant="outline"
+                className="mb-4"
+                onClick={handleDownloadAttendanceExcel}
+                leftIcon={<Download size={16} />}
+              >
+                Download Attendance (Excel)
+              </Button>
+              
+              {/* Scan Attendance QR Button */}
               <Button
                 variant="outline"
                 className="mb-4"
