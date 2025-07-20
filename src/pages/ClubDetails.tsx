@@ -103,6 +103,7 @@ const ClubDetails: React.FC = () => {
   const isPresident = user?.id === club.presidentId;
   const isFacultyAdvisor = user?.id === club.facultyAdvisorId;
   const canEdit = isAdmin || isPresident || isFacultyAdvisor;
+  const isStudent = user?.role === 'student';
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -285,40 +286,42 @@ const ClubDetails: React.FC = () => {
             </CardBody>
           </Card>
           {/* Membership Card */}
-          <Card>
-            <CardBody>
-              {isMember ? (
-                <>
-                  <div className="bg-green-50 text-green-800 rounded-md p-3 mb-4 flex items-center">
-                    <Users className="w-5 h-5 mr-2" />
-                    <span>You're a member of this club!</span>
-                  </div>
-                  <Button
-                    variant="outline"
-                    fullWidth
-                    onClick={handleLeave}
-                    isLoading={isActionLoading}
-                  >
-                    Leave Club
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <h3 className="text-lg font-medium text-neutral-900 mb-2">Join this Club</h3>
-                  <p className="text-neutral-700 mb-4">
-                    Become a member to participate in club activities and events.
-                  </p>
-                  <Button
-                    fullWidth
-                    onClick={handleJoin}
-                    isLoading={isActionLoading}
-                  >
-                    Join Now
-                  </Button>
-                </>
-              )}
-            </CardBody>
-          </Card>
+          {!isStudent && (
+            <Card>
+              <CardBody>
+                {isMember ? (
+                  <>
+                    <div className="bg-green-50 text-green-800 rounded-md p-3 mb-4 flex items-center">
+                      <Users className="w-5 h-5 mr-2" />
+                      <span>You're a member of this club!</span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      fullWidth
+                      onClick={handleLeave}
+                      isLoading={isActionLoading}
+                    >
+                      Leave Club
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <h3 className="text-lg font-medium text-neutral-900 mb-2">Join this Club</h3>
+                    <p className="text-neutral-700 mb-4">
+                      Become a member to participate in club activities and events.
+                    </p>
+                    <Button
+                      fullWidth
+                      onClick={handleJoin}
+                      isLoading={isActionLoading}
+                    >
+                      Join Now
+                    </Button>
+                  </>
+                )}
+              </CardBody>
+            </Card>
+          )}
           {/* Contact Button */}
           <Button
             variant="outline"
