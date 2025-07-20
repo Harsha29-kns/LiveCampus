@@ -66,10 +66,7 @@ const Clubs: React.FC = () => {
         <h1 className="text-2xl font-bold text-neutral-900">Clubs & Organizations</h1>
         <div className="mt-2 sm:mt-0">
           {(user?.role === 'admin' || user?.role === 'faculty') && (
-            <Button
-              onClick={() => navigate('/clubs/create')}
-              leftIcon={<Plus size={16} />}
-            >
+            <Button onClick={() => navigate('/clubs/create')}>
               Create Club
             </Button>
           )}

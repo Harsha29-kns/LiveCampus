@@ -44,22 +44,15 @@ const AdminUserManagement: React.FC = () => {
   const handleClubImageUpdate = async (clubId: string) => {
     setIsUploading(true);
     let logoUrl = clubImageUrl;
-    try {
-      if (clubImageFile) {
-        const storage = getStorage();
-        const storageRef = ref(storage, `clubs/${Date.now()}_${clubImageFile.name}`);
-        await uploadBytes(storageRef, clubImageFile);
-        logoUrl = await getDownloadURL(storageRef);
-      }
-      if (logoUrl) {
-        await updateDoc(doc(db, 'clubs', clubId), { logo: logoUrl });
-        setEditingClubId(null);
-        setClubImageFile(null);
-        setClubImageUrl('');
-        fetchClubs();
-      }
-    } catch (err) {
-      alert('Failed to update club image');
+    if (clubImageFile) {
+      logoUrl = await uploadToCloudinary(clubImageFile); // Use Cloudinary upload
+    }
+    if (logoUrl) {
+      await updateDoc(doc(db, 'clubs', clubId), { logo: logoUrl });
+      setEditingClubId(null);
+      setClubImageFile(null);
+      setClubImageUrl('');
+      fetchClubs();
     }
     setIsUploading(false);
   };

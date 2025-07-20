@@ -1,4 +1,4 @@
-import { addDoc, collection, doc, updateDoc, getDocs, getDoc } from 'firebase/firestore';
+import { addDoc, collection, doc, updateDoc, getDocs, getDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -82,6 +82,19 @@ const CreateClub = () => {
     }
   };
 
+  const uploadToCloudinary = async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', 'club-images'); // Set this in Cloudinary dashboard
+
+    const res = await fetch('https://api.cloudinary.com/v1_1/ductmfmke/image/upload', {
+      method: 'POST',
+      body: formData,
+    });
+    const data = await res.json();
+    return data.secure_url; // This is the image URL
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -93,10 +106,7 @@ const CreateClub = () => {
 
       let imageUrl = clubData.image || '';
       if (imageFile) {
-        const storage = getStorage();
-        const storageRef = ref(storage, `clubs/${Date.now()}_${imageFile.name}`);
-        await uploadBytes(storageRef, imageFile);
-        imageUrl = await getDownloadURL(storageRef);
+        imageUrl = await uploadToCloudinary(imageFile);
       }
 
       if (isEditMode && id) {
@@ -149,6 +159,22 @@ const CreateClub = () => {
     } catch (error) {
       console.error(error);
       toast.error(isEditMode ? 'Failed to update club' : 'Failed to create club');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!id) return;
+    if (!window.confirm('Are you sure you want to delete this club? This action cannot be undone.')) return;
+    setIsLoading(true);
+    try {
+      await deleteDoc(doc(db, 'clubs', id));
+      toast.success('Club deleted!');
+      navigate('/clubs');
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to delete club');
     } finally {
       setIsLoading(false);
     }
@@ -304,7 +330,7 @@ const CreateClub = () => {
                 />
               </div>
             </div>
-            <div className="flex justify-end">
+            <div className="flex justify-end space-x-3">
               <Button
                 type="submit"
                 variant="primary"
@@ -314,6 +340,18 @@ const CreateClub = () => {
               >
                 {isEditMode ? 'Update Club' : 'Create Club'}
               </Button>
+              {isEditMode && (
+                <Button
+                  type="button"
+                  variant="danger"
+                  size="lg"
+                  onClick={handleDelete}
+                  isLoading={isLoading}
+                  className="px-8"
+                >
+                  Delete Club
+                </Button>
+              )}
             </div>
           </form>
         </CardBody>

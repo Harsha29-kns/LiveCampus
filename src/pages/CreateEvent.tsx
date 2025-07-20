@@ -150,16 +150,9 @@ const CreateEvent: React.FC = () => {
       location: formData.location,
       startDate: startDateTime.toISOString(),
       endDate: endDateTime.toISOString(),
+      clubId: user.role === 'club' ? user.clubId : undefined,
+      organizerType: user.role,
       createdBy: user.id,
-      organizerId: user.role === 'club' ? user.clubId : user.id,
-      organizerName: user.role === 'admin'
-        ? 'Campus Administration'
-        : user.role === 'faculty'
-          ? `Faculty of ${user.department || 'Studies'}`
-          : user.role === 'club'
-            ? user.name
-            : 'Student Organization',
-      organizerType: user.role === 'student' ? 'club' : user.role,
       capacity: formData.capacity ? parseInt(formData.capacity) : undefined,
       image: formData.image || undefined,
       tags,

@@ -53,6 +53,12 @@ const Dashboard: React.FC = () => {
   // Popular Clubs
   const popularClubs = [...clubs].sort((a, b) => b.memberCount - a.memberCount).slice(0, 4);
 
+  // Faculty-specific data
+  const facultyClubs = clubs.filter(club => club.facultyAdvisorId === user.id);
+  const facultyClubIds = facultyClubs.map(club => club.id);
+  const myClubId = user.clubId;
+  const visibleEvents = events.filter(event => event.status === 'approved');
+
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Header */}
