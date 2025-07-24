@@ -25,11 +25,16 @@ import ChangePassword from './pages/ChangePassword';
 import CreateClub from './pages/CreateClub';
 import Contact from './pages/Contact';
 import About from './pages/About';
-
+import ClubProfile from './pages/ClubProfile';
+import EventMarks from './pages/EventMarks';
+import MarksDashboard from './pages/MarksDashboard';
+import EventAttendance from './pages/EventAttendance';
+import AttendanceDashboard from './pages/AttendanceDashboard';
 
 // Guards
 import AuthGuard from './guards/AuthGuard';
 import RoleGuard from './guards/RoleGuard';
+import useAutoLogout from './hooks/useAutoLogout';
 
 function App() {
   const { isAuthenticated, user, checkAuth } = useAuthStore();
@@ -41,6 +46,26 @@ function App() {
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
+
+  // Custom hook for auto logout
+  useAutoLogout();
+
+  useEffect(() => {
+    if (
+      isAuthenticated &&
+      user?.role === 'club' &&
+      (
+        !user.club ||
+        !user.club.name ||
+        !user.club.facultyAdvisor ||
+        !user.club.president ||
+        !user.club.vicePresident
+      ) &&
+      location.pathname !== '/club-profile'
+    ) {
+      navigate('/club-profile');
+    }
+  }, [isAuthenticated, user, navigate, location.pathname]);
 
   // 🔧 Show maintenance screen if env variable is set
   if (maintenanceMode) {
@@ -99,8 +124,20 @@ function App() {
           }
         />
         <Route path="/change-password" element={<ChangePassword />} />
-        <Route path="/clubs/create" element={<CreateClub />} />
+        <Route
+          path="/clubs/create"
+          element={
+            <RoleGuard allowedRoles={['admin']}>
+              <CreateClub />
+            </RoleGuard>
+          }
+        />
         <Route path="/clubs/:id/edit" element={<CreateClub />} />
+        <Route path="/club-profile" element={<ClubProfile />} />
+        <Route path="/events/:eventId/marks" element={<EventMarks />} />
+        <Route path="/marks" element={<MarksDashboard />} />
+        <Route path="/events/:eventId/attendance" element={<EventAttendance />} />
+        <Route path="/attendance" element={<AttendanceDashboard />} />
       </Route>
 
       {/* Not Found */}

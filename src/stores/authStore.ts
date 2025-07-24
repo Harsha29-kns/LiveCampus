@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { collection, getDocs, addDoc, query, where, setDoc, doc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, query, where, setDoc, doc, deleteDoc, updateDoc, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { User, UserRole } from '../types';
 import toast from 'react-hot-toast';
@@ -20,6 +20,7 @@ interface AuthState {
   deleteUser: (userId: string) => Promise<void>;
   addUser: (name: string, email: string, password: string, role: string) => Promise<void>;
   updatePassword: (userId: string, newPassword: string) => Promise<void>;
+  setUser: (user: User | null) => void;
 }
 
 const getInitialState = () => {
@@ -61,7 +62,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         // @ts-ignore
         const isMatch = await bcrypt.compare(password, user.password);
         if (isMatch) {
-          set({ user, isAuthenticated: true, isLoading: false });
+          // When fetching user data after login:
+          const userId = userDoc.id;
+          const userDocData = await getDoc(doc(db, 'users', userId));
+          const userData = userDocData.data();
+          let club = null;
+          if (userData.clubId) {
+            const clubDoc = await getDoc(doc(db, 'clubs', userData.clubId));
+            club = clubDoc.exists() ? clubDoc.data() : null;
+          }
+          set({
+            user: {
+              ...userData,
+              id: userId,
+              clubId: userData.clubId || null,
+              club,
+            },
+            isAuthenticated: true,
+            isLoading: false
+          });
           localStorage.setItem('user', JSON.stringify(user));
           toast.success(`Welcome back, ${user.name}!`);
           // @ts-ignore
@@ -136,18 +155,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     toast.success('Logged out successfully');
   },
 
-  checkAuth: () => {
+  checkAuth: async () => {
     const userString = localStorage.getItem('user');
     if (userString) {
-      try {
-        const user = JSON.parse(userString);
-        set({ user, isAuthenticated: true });
-      } catch (error) {
-        set({ user: null, isAuthenticated: false });
-        localStorage.removeItem('user');
+      let user = JSON.parse(userString);
+      // If clubId exists but club is missing, fetch club doc
+      if (user.role === 'club' && user.clubId && !user.club) {
+        const clubDoc = await getDoc(doc(db, 'clubs', user.clubId));
+        if (clubDoc.exists()) {
+          user = { ...user, club: clubDoc.data() };
+          localStorage.setItem('user', JSON.stringify(user));
+        }
       }
-    } else {
-        set({ user: null, isAuthenticated: false });
+      set({ user, isAuthenticated: true });
     }
   },
 
@@ -280,4 +300,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       console.error("Error updating password:", error);
     }
   },
+
+  setUser: (user) => set({ user }),
 }));

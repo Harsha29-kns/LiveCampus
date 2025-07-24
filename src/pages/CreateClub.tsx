@@ -145,12 +145,17 @@ const CreateClub = () => {
           updatedAt: new Date().toISOString(),
         });
 
-        // Optionally, update user docs with clubId
-        await Promise.all([
-          updateDoc(doc(db, 'users', clubData.presidentId), { clubId: docRef.id }),
-          updateDoc(doc(db, 'users', clubData.vicePresidentId), { clubId: docRef.id }),
-          updateDoc(doc(db, 'users', clubData.facultyAdvisorId), { clubId: docRef.id }),
-        ]);
+        // Set clubId for president, vice president, and faculty advisor
+        try {
+          await Promise.all([
+            updateDoc(doc(db, 'users', clubData.presidentId), { clubId: docRef.id }),
+            updateDoc(doc(db, 'users', clubData.vicePresidentId), { clubId: docRef.id }),
+            updateDoc(doc(db, 'users', clubData.facultyAdvisorId), { clubId: docRef.id }),
+          ]);
+        } catch (err) {
+          console.error('Failed to update clubId for users:', err);
+          toast.error('Failed to link club to users!');
+        }
 
         await fetchClubs();
         toast.success('Club created and linked to users!');

@@ -10,7 +10,7 @@ import Badge from '../components/ui/Badge';
 import { format, parseISO } from 'date-fns';
 import toast from 'react-hot-toast';
 import { Event } from '../types';
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 
 const Profile: React.FC = () => {
@@ -29,6 +29,8 @@ const Profile: React.FC = () => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [registeredEvents, setRegisteredEvents] = useState<Event[]>([]);
   const [club, setClub] = useState(null);
+  const [isClubEditing, setIsClubEditing] = useState(false);
+  const [clubEditData, setClubEditData] = useState<any>(club || {});
   
   useEffect(() => {
     const loadRegisteredEvents = async () => {
@@ -61,6 +63,10 @@ const Profile: React.FC = () => {
     }
   }, [user]);
   
+  useEffect(() => {
+    setClubEditData(club || {});
+  }, [club]);
+  
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -72,6 +78,10 @@ const Profile: React.FC = () => {
         return newErrors;
       });
     }
+  };
+  
+  const handleClubChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setClubEditData({ ...clubEditData, [e.target.name]: e.target.value });
   };
   
   const validate = () => {
@@ -130,6 +140,17 @@ const Profile: React.FC = () => {
     if (success) {
       setIsEditing(false);
     }
+  };
+  
+  const handleClubSave = async () => {
+    if (!user?.clubId) return;
+    await updateDoc(doc(db, 'clubs', user.clubId), {
+      ...clubEditData,
+      updatedAt: new Date().toISOString(),
+    });
+    setClub(clubEditData);
+    setIsClubEditing(false);
+    toast.success('Club profile updated!');
   };
   
   if (!user) {
@@ -473,16 +494,70 @@ const Profile: React.FC = () => {
         </div>
       </div>
       
-      {club && (
+      {user.role === 'club' && club && (
         <Card>
           <CardHeader>
             <h2 className="text-lg font-semibold text-neutral-900">My Club</h2>
           </CardHeader>
           <CardBody>
-            {/* @ts-ignore */}
-            <div>Name: {club.name}</div>
-            {/* @ts-ignore */}
-            <div>Description: {club.description}</div>
+            {isClubEditing ? (
+              <>
+                <input
+                  name="name"
+                  value={clubEditData.name || ''}
+                  onChange={handleClubChange}
+                  placeholder="Club Name"
+                  className="mb-2 w-full border p-2 rounded"
+                />
+                <input
+                  name="description"
+                  value={clubEditData.description || ''}
+                  onChange={handleClubChange}
+                  placeholder="Description"
+                  className="mb-2 w-full border p-2 rounded"
+                />
+                <input
+                  name="facultyAdvisor"
+                  value={clubEditData.facultyAdvisor || ''}
+                  onChange={handleClubChange}
+                  placeholder="Faculty Advisor"
+                  className="mb-2 w-full border p-2 rounded"
+                />
+                <input
+                  name="president"
+                  value={clubEditData.president || ''}
+                  onChange={handleClubChange}
+                  placeholder="President"
+                  className="mb-2 w-full border p-2 rounded"
+                />
+                <input
+                  name="vicePresident"
+                  value={clubEditData.vicePresident || ''}
+                  onChange={handleClubChange}
+                  placeholder="Vice President"
+                  className="mb-2 w-full border p-2 rounded"
+                />
+                <input
+                  name="phoneNo"
+                  value={clubEditData.phoneNo || ''}
+                  onChange={handleClubChange}
+                  placeholder="Phone Number"
+                  className="mb-2 w-full border p-2 rounded"
+                />
+                <Button onClick={handleClubSave} className="mt-2 mr-2">Save</Button>
+                <Button variant="outline" onClick={() => setIsClubEditing(false)} className="mt-2">Cancel</Button>
+              </>
+            ) : (
+              <>
+                <div><b>Name:</b> {club.name}</div>
+                <div><b>Description:</b> {club.description}</div>
+                <div><b>Faculty Advisor:</b> {club.facultyAdvisor}</div>
+                <div><b>President:</b> {club.president}</div>
+                <div><b>Vice President:</b> {club.vicePresident}</div>
+                <div><b>Phone:</b> {club.phoneNo}</div>
+                <Button onClick={() => setIsClubEditing(true)} className="mt-2">Edit Club Profile</Button>
+              </>
+            )}
           </CardBody>
         </Card>
       )}

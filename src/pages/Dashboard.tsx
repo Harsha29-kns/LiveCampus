@@ -11,25 +11,22 @@ import { format, parseISO, isToday } from 'date-fns';
 import { Event } from '../types';
 
 const Dashboard: React.FC = () => {
-  const { user } = useAuthStore();
-  const { events, fetchEvents, fetchRegisteredEvents } = useEventStore();
+  const { user, setUser } = useAuthStore();
+  const { events } = useEventStore();
   const { clubs, fetchClubs } = useClubStore();
   const [isLoading, setIsLoading] = useState(true);
   const [registeredEvents, setRegisteredEvents] = useState<Event[]>([]);
+  const [showProfileForm, setShowProfileForm] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
-      await Promise.all([fetchEvents(), fetchClubs()]);
-      if (user?.role === 'student' && user.id) {
-        const regs = await fetchRegisteredEvents(user.id);
-        setRegisteredEvents(regs);
-      }
+      await Promise.all([fetchClubs()]);
       setIsLoading(false);
     };
     loadData();
-  }, [fetchEvents, fetchClubs, user, fetchRegisteredEvents]);
+  }, [fetchClubs]);
 
   // --- STATS CALCULATION ---
   const approvedEvents = events.filter(e => e.status === 'approved');
@@ -78,6 +75,20 @@ const Dashboard: React.FC = () => {
       <ChevronRight className="w-5 h-5 text-neutral-400 ml-2" />
     </div>
   );
+
+  // Only show events created by this club
+  const myClubEvents = events.filter(event => event.clubId === user.clubId);
+
+  // Check if club profile is incomplete
+  const isClubProfileIncomplete =
+    user?.role === 'club' &&
+    (
+      !user.club ||
+      !user.club.name ||
+      !user.club.facultyAdvisor ||
+      !user.club.president ||
+      !user.club.vicePresident
+    );
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -191,6 +202,50 @@ const Dashboard: React.FC = () => {
           </Card>
         </div>
       </div>
+
+      {/* My Club Events (Club Admins) */}
+      {user?.role === 'club' && (
+        <Card>
+          <CardHeader>
+            <h2 className="text-xl font-bold text-neutral-800">My Club Events</h2>
+          </CardHeader>
+          <CardBody className="divide-y divide-neutral-100">
+            {myClubEvents.length > 0 ? (
+              myClubEvents.map(event => (
+                <div key={event.id} className="py-3">
+                  <div className="flex justify-between items-center">
+                    <h3 className="font-semibold text-neutral-800">{event.title}</h3>
+                    <Button variant="outline" size="sm" onClick={() => navigate(`/events/${event.id}`)}>Manage/View Participants</Button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-8">
+                <Calendar className="h-12 w-12 text-neutral-300 mx-auto mb-3" />
+                <h3 className="text-lg font-medium text-neutral-700">No events found for your club</h3>
+                <p className="text-neutral-500">Create an event to get started!</p>
+              </div>
+            )}
+          </CardBody>
+        </Card>
+      )}
+
+      {isClubProfileIncomplete && !showProfileForm && (
+        <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-6 rounded">
+          <div className="flex items-center justify-between">
+            <span>
+              Your club profile is incomplete. Please&nbsp;
+              <button
+                className="underline text-primary-700 font-semibold"
+                onClick={() => setShowProfileForm(true)}
+              >
+                complete your club profile
+              </button>
+              .
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
