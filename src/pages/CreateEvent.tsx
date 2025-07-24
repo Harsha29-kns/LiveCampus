@@ -76,7 +76,7 @@ const CreateEvent: React.FC = () => {
         }
     };
     
-    // This function's logic remains unchanged
+    
     const uploadToCloudinary = async (file: File) => {
         const formData = new FormData();
         formData.append('file', file);
@@ -121,7 +121,7 @@ const CreateEvent: React.FC = () => {
             return;
         }
 
-        // --- Set local loading state to true ---
+        
         setIsSubmitting(true);
 
         try {

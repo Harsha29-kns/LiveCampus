@@ -9,6 +9,8 @@ import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import { format, parseISO, isToday } from 'date-fns';
 import { Event } from '../types';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../firebaseConfig';
 
 const Dashboard: React.FC = () => {
   const { user, setUser } = useAuthStore();
@@ -27,6 +29,28 @@ const Dashboard: React.FC = () => {
     };
     loadData();
   }, [fetchClubs]);
+
+  useEffect(() => {
+    const loadRegisteredEvents = async () => {
+      if (user?.role === 'student') {
+        // Get all registrations for this student
+        const registrationsQuery = query(
+          collection(db, 'eventRegistrations'),
+          where('userId', '==', user.id)
+        );
+        const registrationSnapshots = await getDocs(registrationsQuery);
+        const eventIds = registrationSnapshots.docs.map(doc => doc.data().eventId);
+
+        // Filter events by those eventIds
+        const userRegisteredEvents = events.filter(event => eventIds.includes(event.id));
+        setRegisteredEvents(userRegisteredEvents);
+      }
+    };
+
+    if (user?.role === 'student') {
+      loadRegisteredEvents();
+    }
+  }, [user, events]);
 
   // --- STATS CALCULATION ---
   const approvedEvents = events.filter(e => e.status === 'approved');

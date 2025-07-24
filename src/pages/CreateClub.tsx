@@ -24,7 +24,7 @@ const CreateClub = () => {
     vicePresidentId: '',
     facultyAdvisorId: '',
     phoneNo: '',
-    image: '', // image URL
+    image: '', 
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -34,18 +34,18 @@ const CreateClub = () => {
   const isEditMode = Boolean(id);
   const { fetchClubs } = useClubStore.getState();
 
-  // Move fetchUsers here so it's accessible
+  
   const fetchUsers = async () => {
     const snapshot = await getDocs(collection(db, 'users'));
     setUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserOption)));
   };
 
-  // Fetch users for dropdowns on mount
+  
   useEffect(() => {
     fetchUsers();
   }, []);
 
-  // If id exists, fetch club data and prefill the form for editing
+  
   useEffect(() => {
     const fetchClubData = async () => {
       if (id) {
@@ -60,7 +60,7 @@ const CreateClub = () => {
             vicePresidentId: data.vicePresidentId,
             facultyAdvisorId: data.facultyAdvisorId,
             phoneNo: data.phoneNo,
-            image: data.logo, // assuming logo field contains the image URL
+            image: data.logo, 
           });
         }
       }
@@ -145,7 +145,7 @@ const CreateClub = () => {
           updatedAt: new Date().toISOString(),
         });
 
-        // Set clubId for president, vice president, and faculty advisor
+        
         try {
           await Promise.all([
             updateDoc(doc(db, 'users', clubData.presidentId), { clubId: docRef.id }),

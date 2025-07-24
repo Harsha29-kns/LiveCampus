@@ -52,17 +52,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const userDoc = snapshot.docs[0];
         const user = { id: userDoc.id, ...userDoc.data() } as User;
 
-        // @ts-ignore
+        
         if (user.role !== 'admin' && user.status !== 'approved') {
           toast.error('Your account is pending approval by admin.');
           set({ isLoading: false });
           return false;
         }
 
-        // @ts-ignore
+      
         const isMatch = await bcrypt.compare(password, user.password);
         if (isMatch) {
-          // When fetching user data after login:
+          
           const userId = userDoc.id;
           const userDocData = await getDoc(doc(db, 'users', userId));
           const userData = userDocData.data();
@@ -110,7 +110,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   register: async (name, email, password, role) => {
     set({ isLoading: true });
     try {
-      // Check if user exists
+      
       const q = query(collection(db, 'users'), where('email', '==', email));
       const snapshot = await getDocs(q);
       if (!snapshot.empty) {
@@ -130,7 +130,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       };
       const docRef = await addDoc(collection(db, 'users'), newUser);
 
-      // Only log in if approved
+      
       if (newUser.status === 'approved') {
         const userToStore = { id: docRef.id, ...newUser } as User;
         set({ user: userToStore, isAuthenticated: true, isLoading: false });
@@ -159,7 +159,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const userString = localStorage.getItem('user');
     if (userString) {
       let user = JSON.parse(userString);
-      // If clubId exists but club is missing, fetch club doc
+      
       if (user.role === 'club' && user.clubId && !user.club) {
         const clubDoc = await getDoc(doc(db, 'clubs', user.clubId));
         if (clubDoc.exists()) {
@@ -180,14 +180,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return false;
     }
     try {
-      // Update the user document in Firestore
+      
       const userRef = doc(db, 'users', user.id);
       await updateDoc(userRef, {
         ...userData,
         updatedAt: new Date().toISOString(),
       });
 
-      // Update the local state and localStorage
+      
       const updatedUser = { ...user, ...userData, updatedAt: new Date().toISOString() };
       set({ user: updatedUser, isLoading: false });
       localStorage.setItem('user', JSON.stringify(updatedUser));
@@ -210,13 +210,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const result = await signInWithPopup(auth, provider);
       const gUser = result.user;
 
-      // Check if user exists in Firestore
+      
       const q = query(collection(db, 'users'), where('email', '==', gUser.email));
       const snapshot = await getDocs(q);
 
       let userData;
       if (snapshot.empty) {
-        // If not, create a new user document
+        
         userData = {
           id: gUser.uid,
           name: gUser.displayName,
