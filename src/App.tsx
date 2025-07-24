@@ -6,7 +6,7 @@ import Maintenance from './pages/Maintenance';
 // Layouts
 import PublicLayout from './layouts/PublicLayout';
 import DashboardLayout from './layouts/DashboardLayout';
-import { Analytics } from "@vercel/analytics/next"
+import { Analytics } from "@vercel/analytics/react";
 
 // Pages
 import Login from './pages/Login';
