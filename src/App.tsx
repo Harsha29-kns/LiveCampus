@@ -73,76 +73,79 @@ function App() {
   }
 
   return (
-    <Routes>
-      {/* Public Routes */}
-      <Route element={<PublicLayout />}>
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/contact" element={<Contact />} />
-        <Route path="/about" element={<About />} />
-      </Route>
+    <>
+      <Routes>
+        {/* Public Routes */}
+        <Route element={<PublicLayout />}>
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/about" element={<About />} />
+        </Route>
 
-      {/* Protected Routes */}
-      <Route element={
-        <AuthGuard>
-          <DashboardLayout />
-        </AuthGuard>
-      }>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/events" element={<Events />} />
-        <Route path="/events/:id" element={<EventDetails />} />
-        <Route 
-          path="/events/create" 
-          element={
-            <RoleGuard allowedRoles={['admin', 'club', 'faculty']}>
-              <CreateEvent />
-            </RoleGuard>
-          } 
-        />
-        <Route
-          path="/events/edit/:id"
-          element={
-            <AuthGuard>
-              <RoleGuard allowedRoles={['admin', 'faculty', 'club']}>
+        {/* Protected Routes */}
+        <Route element={
+          <AuthGuard>
+            <DashboardLayout />
+          </AuthGuard>
+        }>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/events" element={<Events />} />
+          <Route path="/events/:id" element={<EventDetails />} />
+          <Route 
+            path="/events/create" 
+            element={
+              <RoleGuard allowedRoles={['admin', 'club', 'faculty']}>
                 <CreateEvent />
               </RoleGuard>
-            </AuthGuard>
-          }
-        />
-        <Route path="/clubs" element={<Clubs />} />
-        <Route path="/clubs/:id" element={<ClubDetails />} />
-        <Route path="/profile" element={<Profile />} />
-        <Route
-          path="/admin/users"
-          element={
-            <AuthGuard>
+            } 
+          />
+          <Route
+            path="/events/edit/:id"
+            element={
+              <AuthGuard>
+                <RoleGuard allowedRoles={['admin', 'faculty', 'club']}>
+                  <CreateEvent />
+                </RoleGuard>
+              </AuthGuard>
+            }
+          />
+          <Route path="/clubs" element={<Clubs />} />
+          <Route path="/clubs/:id" element={<ClubDetails />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route
+            path="/admin/users"
+            element={
+              <AuthGuard>
+                <RoleGuard allowedRoles={['admin']}>
+                  <AdminUserManagement />
+                </RoleGuard>
+              </AuthGuard>
+            }
+          />
+          <Route path="/change-password" element={<ChangePassword />} />
+          <Route
+            path="/clubs/create"
+            element={
               <RoleGuard allowedRoles={['admin']}>
-                <AdminUserManagement />
+                <CreateClub />
               </RoleGuard>
-            </AuthGuard>
-          }
-        />
-        <Route path="/change-password" element={<ChangePassword />} />
-        <Route
-          path="/clubs/create"
-          element={
-            <RoleGuard allowedRoles={['admin']}>
-              <CreateClub />
-            </RoleGuard>
-          }
-        />
-        <Route path="/clubs/:id/edit" element={<CreateClub />} />
-        <Route path="/club-profile" element={<ClubProfile />} />
-        <Route path="/events/:eventId/marks" element={<EventMarks />} />
-        <Route path="/marks" element={<MarksDashboard />} />
-        <Route path="/events/:eventId/attendance" element={<EventAttendance />} />
-        <Route path="/attendance" element={<AttendanceDashboard />} />
-      </Route>
+            }
+          />
+          <Route path="/clubs/:id/edit" element={<CreateClub />} />
+          <Route path="/club-profile" element={<ClubProfile />} />
+          <Route path="/events/:eventId/marks" element={<EventMarks />} />
+          <Route path="/marks" element={<MarksDashboard />} />
+          <Route path="/events/:eventId/attendance" element={<EventAttendance />} />
+          <Route path="/attendance" element={<AttendanceDashboard />} />
+        </Route>
 
-      {/* Not Found */}
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+        {/* Not Found */}
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+      <Analytics />
+    </>
   );
 }
 
