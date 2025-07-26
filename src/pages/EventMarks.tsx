@@ -12,26 +12,36 @@ const EventMarks: React.FC = () => {
   const [registrations, setRegistrations] = useState<any[]>([]);
   const [marksData, setMarksData] = useState<Record<string, string | number>>({});
   const [eventTitle, setEventTitle] = useState('');
+  const [eventStatus, setEventStatus] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
-      // Fetch event info
-      const eventSnap = await getDocs(query(collection(db, 'events'), where('id', '==', eventId)));
-      if (!eventSnap.empty) {
-        setEventTitle(eventSnap.docs[0].data().title || '');
+      setIsLoading(true);
+      try {
+        const eventSnap = await getDocs(query(collection(db, 'events'), where('id', '==', eventId)));
+        if (!eventSnap.empty) {
+          const eventData = eventSnap.docs[0].data();
+          setEventTitle(eventData.title || '');
+          setEventStatus(eventData.approvalStatus || '');
+        }
+
+        const regsQuery = query(collection(db, 'eventRegistrations'), where('eventId', '==', eventId));
+        const regsSnap = await getDocs(regsQuery);
+        const regs = regsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setRegistrations(regs);
+
+        const marksObj: Record<string, string | number> = {};
+        regs.forEach(reg => {
+          if (reg.status === 'attended') marksObj[reg.id] = reg.marks ?? '';
+          else marksObj[reg.id] = 'AB';
+        });
+        setMarksData(marksObj);
+      } catch (error) {
+        toast.error("Failed to load data");
+      } finally {
+        setIsLoading(false);
       }
-      // Fetch registrations
-      const regsQuery = query(collection(db, 'eventRegistrations'), where('eventId', '==', eventId));
-      const regsSnap = await getDocs(regsQuery);
-      const regs = regsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setRegistrations(regs);
-      // Initialize marksData
-      const marksObj: Record<string, string | number> = {};
-      regs.forEach(reg => {
-        if (reg.status === 'attended') marksObj[reg.id] = reg.marks ?? '';
-        else marksObj[reg.id] = 'AB';
-      });
-      setMarksData(marksObj);
     };
     fetchData();
   }, [eventId]);
@@ -64,47 +74,62 @@ const EventMarks: React.FC = () => {
     XLSX.writeFile(workbook, `${eventTitle || 'event'}-attendance-marks.xlsx`);
   };
 
+  if (isLoading) {
+    return <div className="text-center p-12">Loading...</div>;
+  }
+
   return (
     <div className="max-w-3xl mx-auto mt-8 p-4 bg-white rounded shadow">
       <h2 className="text-2xl font-bold mb-4">Attendance & Marks Entry</h2>
-      <table className="min-w-full border mb-4">
-        <thead>
-          <tr>
-            <th className="border px-2 py-1">S.No</th>
-            <th className="border px-2 py-1">Reg. No</th>
-            <th className="border px-2 py-1">Name</th>
-            <th className="border px-2 py-1">Status</th>
-            <th className="border px-2 py-1">Marks</th>
-          </tr>
-        </thead>
-        <tbody>
-          {registrations.map((reg, idx) => (
-            <tr key={reg.id}>
-              <td className="border px-2 py-1">{idx + 1}</td>
-              <td className="border px-2 py-1">{reg.regNo}</td>
-              <td className="border px-2 py-1">{reg.name}</td>
-              <td className="border px-2 py-1">
-                {reg.status === 'attended' ? 'Present' : 'Absent'}
-              </td>
-              <td className="border px-2 py-1">
-                {reg.status === 'attended' ? (
-                  <input
-                    type="number"
-                    min={0}
-                    value={marksData[reg.id] === 'AB' ? '' : marksData[reg.id]}
-                    onChange={e => handleMarksChange(reg.id, e.target.value)}
-                    className="w-20 border rounded px-1"
-                  />
-                ) : (
-                  <span className="text-red-500 font-semibold">AB</span>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <Button onClick={handleSaveMarks} className="mr-2">Save Marks</Button>
-      <Button onClick={handleDownloadExcel} variant="outline">Download Excel</Button>
+
+      {eventStatus && eventStatus !== 'approved' ? (
+        <p className="text-red-500 font-semibold">
+          This event has been <span className="uppercase">{eventStatus}</span>. Marks entry is disabled.
+        </p>
+      ) : (
+        <>
+          <table className="min-w-full border mb-4">
+            <thead>
+              <tr>
+                <th className="border px-2 py-1">S.No</th>
+                <th className="border px-2 py-1">Reg. No</th>
+                <th className="border px-2 py-1">Name</th>
+                <th className="border px-2 py-1">Status</th>
+                <th className="border px-2 py-1">Marks</th>
+              </tr>
+            </thead>
+            <tbody>
+              {registrations.map((reg, idx) => (
+                <tr key={reg.id}>
+                  <td className="border px-2 py-1">{idx + 1}</td>
+                  <td className="border px-2 py-1">{reg.regNo}</td>
+                  <td className="border px-2 py-1">{reg.name}</td>
+                  <td className="border px-2 py-1">
+                    {reg.status === 'attended' ? 'Present' : 'Absent'}
+                  </td>
+                  <td className="border px-2 py-1">
+                    {reg.status === 'attended' ? (
+                      <input
+                        type="number"
+                        min={0}
+                        value={marksData[reg.id] === 'AB' ? '' : marksData[reg.id]}
+                        onChange={e => handleMarksChange(reg.id, e.target.value)}
+                        className="w-20 border rounded px-1"
+                      />
+                    ) : (
+                      <span className="text-red-500 font-semibold">AB</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <Button onClick={handleSaveMarks} className="mr-2">Save Marks</Button>
+          <Button onClick={handleDownloadExcel} variant="outline">Download Excel</Button>
+        </>
+      )}
+
       <Button onClick={() => navigate(-1)} variant="outline" className="ml-2">Back</Button>
     </div>
   );
