@@ -11,39 +11,37 @@ import { format, parseISO, isToday } from 'date-fns';
 import { Event } from '../types';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import LoadingSpinner from '../components/ui/LoadingSpinner'; // Import the loading spinner
 
 const Dashboard: React.FC = () => {
   const { user, setUser } = useAuthStore();
   const { events } = useEventStore();
-  const { clubs, fetchClubs } = useClubStore();
-  const [isLoading, setIsLoading] = useState(true);
+  const { clubs, fetchClubs, isLoading } = useClubStore(); // Get isLoading from the store
   const [registeredEvents, setRegisteredEvents] = useState<Event[]>([]);
   const [showProfileForm, setShowProfileForm] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const loadData = async () => {
-      setIsLoading(true);
-      await Promise.all([fetchClubs()]);
-      setIsLoading(false);
-    };
-    loadData();
+    // The isLoading state from the store will manage the loading UI
+    fetchClubs();
   }, [fetchClubs]);
 
   useEffect(() => {
     const loadRegisteredEvents = async () => {
-      if (user?.role === 'student') {
-        // Get all registrations for this student
+      if (user?.role === 'student' && user.id) {
         const registrationsQuery = query(
           collection(db, 'eventRegistrations'),
           where('userId', '==', user.id)
         );
         const registrationSnapshots = await getDocs(registrationsQuery);
         const eventIds = registrationSnapshots.docs.map(doc => doc.data().eventId);
-
-        // Filter events by those eventIds
-        const userRegisteredEvents = events.filter(event => eventIds.includes(event.id));
-        setRegisteredEvents(userRegisteredEvents);
+        
+        if (eventIds.length > 0) {
+          const userRegisteredEvents = events.filter(event => eventIds.includes(event.id));
+          setRegisteredEvents(userRegisteredEvents);
+        } else {
+          setRegisteredEvents([]);
+        }
       }
     };
 
@@ -58,9 +56,8 @@ const Dashboard: React.FC = () => {
   const pendingEventsCount = events.filter(event => event.status === 'pending').length;
   const myClub = user?.role === 'club' ? clubs.find(c => c.id === user.clubId) : null;
   const myOrganizedEvents = user ? events.filter(e => e.organizerId === (user.role === 'club' ? user.clubId : user.id)) : [];
-  const totalRegistrations = myOrganizedEvents.reduce((total, event) => total + event.registeredCount, 0);
+  const totalRegistrations = myOrganizedEvents.reduce((total, event) => total + (event.registeredCount || 0), 0);
   const eventsTodayCount = approvedEvents.filter(e => isToday(parseISO(e.startDate))).length;
-
 
   const StatCard = ({ title, value, icon, colorClass, onClick }: { title: string, value: string | number, icon: React.ReactNode, colorClass: string, onClick?: () => void }) => (
     <Card className={`text-white shadow-lg hover:shadow-xl transition-shadow ${onClick ? 'cursor-pointer' : ''}`} onClick={onClick}>
@@ -100,10 +97,8 @@ const Dashboard: React.FC = () => {
     </div>
   );
 
-  // Only show events created by this club
-  const myClubEvents = events.filter(event => event.clubId === user.clubId);
+  const myClubEvents = user?.role === 'club' ? events.filter(event => event.organizerId === user.clubId) : [];
 
-  // Check if club profile is incomplete
   const isClubProfileIncomplete =
     user?.role === 'club' &&
     (
@@ -113,6 +108,15 @@ const Dashboard: React.FC = () => {
       !user.club.president ||
       !user.club.vicePresident
     );
+
+  // Display a full-page loading spinner while initial data is being fetched.
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full min-h-[60vh]">
+        <LoadingSpinner size="lg" text="Loading dashboard..." />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -127,7 +131,6 @@ const Dashboard: React.FC = () => {
         <StatCard title="Upcoming Events" value={upcomingEvents.length} icon={<Calendar size={24} />} colorClass="bg-gradient-to-br from-blue-500 to-blue-600" onClick={() => navigate('/events')} />
         <StatCard title="Active Clubs" value={clubs.length} icon={<Users size={24} />} colorClass="bg-gradient-to-br from-green-500 to-green-600" onClick={() => navigate('/clubs')} />
         
-        {/* Role-specific stat cards */}
         {user?.role === 'student' && <StatCard title="My Registrations" value={registeredEvents.length} icon={<UserCheck size={24} />} colorClass="bg-gradient-to-br from-purple-500 to-purple-600" onClick={() => navigate('/profile')} />}
         
         {(user?.role === 'faculty' || user?.role === 'club') && <StatCard title="My Events" value={myOrganizedEvents.length} icon={<Activity size={24} />} colorClass="bg-gradient-to-br from-purple-500 to-purple-600" />}
@@ -142,7 +145,6 @@ const Dashboard: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Main Content Area */}
         <div className="lg:col-span-2 space-y-8">
-          {/* My Registered Events (Student) */}
           {user?.role === 'student' && registeredEvents.length > 0 && (
             <Card>
               <CardHeader>
@@ -156,7 +158,6 @@ const Dashboard: React.FC = () => {
             </Card>
           )}
 
-          {/* My Club Info (Club Admins) */}
           {user?.role === 'club' && myClub && (
              <Card>
               <CardHeader>
@@ -174,7 +175,6 @@ const Dashboard: React.FC = () => {
             </Card>
           )}
 
-          {/* Upcoming Events List */}
           <Card>
             <CardHeader className="flex justify-between items-center">
               <h2 className="text-xl font-bold text-neutral-800">What's Happening Soon</h2>
@@ -227,7 +227,6 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* My Club Events (Club Admins) */}
       {user?.role === 'club' && (
         <Card>
           <CardHeader>

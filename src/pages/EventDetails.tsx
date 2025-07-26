@@ -16,6 +16,7 @@ import { doc, getDoc, query, collection, where, getDocs } from 'firebase/firesto
 import { db } from '../firebaseConfig';
 import QRCode from 'react-qr-code';
 import { toPng } from 'html-to-image';
+import LoadingSpinner from '../components/ui/LoadingSpinner'; // Import the spinner component
 
 const EventDetails: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -23,6 +24,7 @@ const EventDetails: React.FC = () => {
     const { getEventById, fetchEvents, approveEvent, rejectEvent, deleteEvent, registerForEvent, cancelRegistration } = useEventStore();
     const { user } = useAuthStore();
     const [event, setEvent] = useState(getEventById(id || ''));
+    const [isLoading, setIsLoading] = useState(true); // State to manage loading
     const [isRegistered, setIsRegistered] = useState(false);
     const [isActionLoading, setIsActionLoading] = useState(false);
     const [registrationData, setRegistrationData] = useState({
@@ -34,26 +36,32 @@ const EventDetails: React.FC = () => {
 
     useEffect(() => {
         const loadEvent = async () => {
-            if (!event) {
-                await fetchEvents();
-                const fetchedEvent = getEventById(id || '');
+            setIsLoading(true); // Start loading
+            try {
+                let fetchedEvent = getEventById(id || '');
+                if (!fetchedEvent) {
+                    await fetchEvents();
+                    fetchedEvent = getEventById(id || '');
+                }
+
                 if (fetchedEvent) {
                     setEvent(fetchedEvent);
                 } else {
                     toast.error('Event not found');
                     navigate('/events');
                 }
+            } catch (error) {
+                toast.error("Could not load event details.");
+            } finally {
+                setIsLoading(false); // Stop loading
             }
         };
         loadEvent();
-    }, [id, event, fetchEvents, getEventById, navigate]);
+    }, [id, getEventById, fetchEvents, navigate]);
 
     useEffect(() => {
         const checkRegistration = async () => {
-            if (!id || !user) {
-                setIsRegistered(false);
-                return;
-            }
+            if (!id || !user || !event) return;
             const q = query(collection(db, 'eventRegistrations'), where('eventId', '==', id), where('userId', '==', user.id));
             const snapshot = await getDocs(q);
             setIsRegistered(!snapshot.empty);
@@ -151,8 +159,18 @@ const EventDetails: React.FC = () => {
         link.click();
     };
 
+    if (isLoading) {
+        return (
+            <div className="flex justify-center items-center h-screen">
+                <LoadingSpinner size="lg" text="Loading Event..." />
+            </div>
+        );
+    }
+    
     if (!event) {
-        return <div className="flex justify-center items-center h-screen"><div className="animate-spin rounded-full h-16 w-16 border-t-4 border-indigo-600"></div></div>;
+        // This handles the case where loading is done but the event wasn't found.
+        // It prevents the rest of the component from trying to render with null data.
+        return null;
     }
     
     const isAdmin = user?.role === 'admin';

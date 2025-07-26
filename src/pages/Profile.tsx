@@ -12,12 +12,14 @@ import toast from 'react-hot-toast';
 import { Event } from '../types';
 import { doc, getDoc, collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import LoadingSpinner from '../components/ui/LoadingSpinner'; // Import the spinner component
 
 const Profile: React.FC = () => {
-  const { user, updateProfile, isLoading } = useAuthStore();
+  const { user, updateProfile, isLoading: isAuthLoading } = useAuthStore();
   const { events, fetchEvents } = useEventStore();
   const navigate = useNavigate();
   
+  const [isPageLoading, setIsPageLoading] = useState(true); // State for initial page load
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     name: user?.name || '',
@@ -33,40 +35,43 @@ const Profile: React.FC = () => {
   const [clubEditData, setClubEditData] = useState<any>(club || {});
   
   useEffect(() => {
-    const loadRegisteredEvents = async () => {
-      if (user && events.length > 0) {
+    const loadProfileData = async () => {
+      if (!user) {
+        setIsPageLoading(false);
+        return;
+      }
+      
+      setIsPageLoading(true);
+      try {
+        // Fetch registered events
+        if (events.length === 0) {
+          await fetchEvents();
+        }
         const registrationsQuery = query(collection(db, 'eventRegistrations'), where('userId', '==', user.id));
         const registrationSnapshots = await getDocs(registrationsQuery);
         const eventIds = registrationSnapshots.docs.map(doc => doc.data().eventId);
-        
         const userRegisteredEvents = events.filter(event => eventIds.includes(event.id));
         setRegisteredEvents(userRegisteredEvents);
+
+        // Fetch club data if applicable
+        if (user.clubId) {
+          const clubSnapshot = await getDoc(doc(db, 'clubs', user.clubId));
+          if (clubSnapshot.exists()) {
+            const clubData = clubSnapshot.data();
+            setClub(clubData);
+            setClubEditData(clubData);
+          }
+        }
+      } catch (error) {
+        toast.error("Failed to load profile data.");
+      } finally {
+        setIsPageLoading(false);
       }
     };
-
-    if (events.length === 0) {
-      fetchEvents().then(() => loadRegisteredEvents());
-    } else {
-      loadRegisteredEvents();
-    }
+    
+    loadProfileData();
   }, [user, events, fetchEvents]);
-  
-  useEffect(() => {
-    // @ts-ignore
-    if (user?.clubId) {
-       // @ts-ignore
-      getDoc(doc(db, 'clubs', user.clubId)).then(snapshot => {
-        if (snapshot.exists()) { // @ts-ignore
-          setClub(snapshot.data());
-        }
-      });
-    }
-  }, [user]);
-  
-  useEffect(() => {
-    setClubEditData(club || {});
-  }, [club]);
-  
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -153,12 +158,22 @@ const Profile: React.FC = () => {
     toast.success('Club profile updated!');
   };
   
+  // This handles the case where the user object itself is not yet available from the auth store
   if (!user) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
+        <LoadingSpinner size="lg" text="Loading User..." />
       </div>
     );
+  }
+
+  // This handles the loading of associated data like events and clubs after the user is available
+  if (isPageLoading) {
+      return (
+          <div className="flex justify-center items-center h-64">
+              <LoadingSpinner size="lg" text="Loading Profile Data..." />
+          </div>
+      );
   }
   
   return (
@@ -258,7 +273,7 @@ const Profile: React.FC = () => {
                   <Button
                     type="submit"
                     leftIcon={<Save size={16} />}
-                    isLoading={isLoading}
+                    isLoading={isAuthLoading} // Use isAuthLoading for the save button's spinner
                   >
                     Save Changes
                   </Button>

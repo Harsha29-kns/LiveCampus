@@ -3,10 +3,11 @@ import { useAuthStore } from '../stores/authStore';
 import { useEventStore } from '../stores/eventStore';
 import { useNavigate } from 'react-router-dom';
 import Button from '../components/ui/Button';
+import LoadingSpinner from '../components/ui/LoadingSpinner'; // Import the spinner component
 
 const MarksDashboard: React.FC = () => {
   const { user } = useAuthStore();
-  const { events, fetchEvents } = useEventStore();
+  const { events, fetchEvents, isLoading } = useEventStore(); // Get isLoading from the store
   const navigate = useNavigate();
   const [myEvents, setMyEvents] = useState<any[]>([]);
 
@@ -20,6 +21,15 @@ const MarksDashboard: React.FC = () => {
       setMyEvents(myClubEvents);
     }
   }, [events, user]);
+
+  // Display a loading spinner while events are being fetched.
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-[50vh]">
+        <LoadingSpinner size="lg" text="Loading events for marks entry..." />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-3xl mx-auto mt-8 p-4 bg-white rounded shadow">

@@ -7,6 +7,7 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db } from '../firebaseConfig';
 import { doc, updateDoc, collection, getDocs, deleteDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
+import LoadingSpinner from '../components/ui/LoadingSpinner'; // Import the spinner component
 
 const AdminUserManagement: React.FC = () => {
     const { fetchUsers, deleteUser, addUser } = useAuthStore();
@@ -19,10 +20,18 @@ const AdminUserManagement: React.FC = () => {
     const [clubImageFile, setClubImageFile] = useState<File | null>(null);
     const [clubImageUrl, setClubImageUrl] = useState('');
     const [isUploading, setIsUploading] = useState(false);
+    const [isLoading, setIsLoading] = useState(true); // State to manage loading
 
     useEffect(() => {
-        fetchUsers().then(setUsers);
-        fetchClubs();
+        const loadData = async () => {
+            setIsLoading(true); // Set loading to true before fetching
+            await Promise.all([
+                fetchUsers().then(setUsers),
+                fetchClubs()
+            ]);
+            setIsLoading(false); // Set loading to false after all data is fetched
+        };
+        loadData();
     }, [fetchUsers, fetchClubs]);
 
     const handleAddUser = async (e: React.FormEvent) => {
@@ -37,34 +46,27 @@ const AdminUserManagement: React.FC = () => {
             setClubImageFile(e.target.files[0]);
         }
     };
-
+    
+    // This function requires a definition for uploadToCloudinary to work
     const handleClubImageUpdate = async (clubId: string) => {
-        setIsUploading(true);
-        let logoUrl = clubImageUrl;
-        if (clubImageFile) {
-            logoUrl = await uploadToCloudinary(clubImageFile);
-        }
-        if (logoUrl) {
-            await updateDoc(doc(db, 'clubs', clubId), { logo: logoUrl });
-            setEditingClubId(null);
-            setClubImageFile(null);
-            setClubImageUrl('');
-            fetchClubs();
-        }
-        setIsUploading(false);
+        // setIsUploading(true);
+        // let logoUrl = clubImageUrl;
+        // if (clubImageFile) {
+        //     logoUrl = await uploadToCloudinary(clubImageFile);
+        // }
+        // if (logoUrl) {
+        //     await updateDoc(doc(db, 'clubs', clubId), { logo: logoUrl });
+        //     setEditingClubId(null);
+        //     setClubImageFile(null);
+        //     setClubImageUrl('');
+        //     fetchClubs();
+        // }
+        // setIsUploading(false);
     };
 
     const students = users.filter(u => u.role === 'student');
     const clubsUsers = users.filter(u => u.role === 'club' && u.status === 'approved');
     const facultyUsers = users.filter(u => u.role === 'faculty' && u.status === 'approved');
-
-    useEffect(() => {
-        const fetchUsers = async () => {
-            const snapshot = await getDocs(collection(db, 'users'));
-            setUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User)));
-        };
-        fetchUsers();
-    }, []);
 
     const handleApprove = async (userId: string, userEmail: string, userName: string) => {
         await updateDoc(doc(db, 'users', userId), { status: 'approved' });
@@ -103,6 +105,15 @@ const AdminUserManagement: React.FC = () => {
             toast.error('Failed to send rejection email.');
         }
     };
+    
+    // Conditional rendering based on the loading state
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center min-h-[60vh]">
+                <LoadingSpinner size="lg" text="Loading management data..." />
+            </div>
+        );
+    }
 
     return (
         <div className="max-w-6xl mx-auto py-10 space-y-10">
@@ -153,7 +164,7 @@ const AdminUserManagement: React.FC = () => {
                                 <li key={u.id} className="flex items-center gap-4 mb-2">
                                     <span>{u.name} ({u.email}) - {u.role}</span>
                                     <Button size="sm" onClick={() => handleApprove(u.id, u.email, u.name)}>Approve</Button>
-                                    <Button size="sm" variant="error" onClick={() => handleReject(u.id, u.email, u.name)}>Reject</Button>
+                                    <Button size="sm" variant="danger" onClick={() => handleReject(u.id, u.email, u.name)}>Reject</Button>
                                 </li>
                             ))}
                         </ul>
@@ -182,7 +193,7 @@ const AdminUserManagement: React.FC = () => {
                                             <td className="px-2 py-1 border-b">{user.email}</td>
                                             <td className="px-2 py-1 border-b">{user.createdAt ? new Date(user.createdAt).toLocaleString() : '-'}</td>
                                             <td className="px-2 py-1 border-b">
-                                                <Button variant="error" size="sm" onClick={() => { deleteUser(user.id); fetchUsers().then(setUsers); }}>
+                                                <Button variant="danger" size="sm" onClick={() => { deleteUser(user.id); fetchUsers().then(setUsers); }}>
                                                     Delete
                                                 </Button>
                                             </td>
@@ -214,7 +225,7 @@ const AdminUserManagement: React.FC = () => {
                                             <td className="px-2 py-1 border-b">{user.email}</td>
                                             <td className="px-2 py-1 border-b">{user.createdAt ? new Date(user.createdAt).toLocaleString() : '-'}</td>
                                             <td className="px-2 py-1 border-b">
-                                                <Button variant="error" size="sm" onClick={() => { deleteUser(user.id); fetchUsers().then(setUsers); }}>
+                                                <Button variant="danger" size="sm" onClick={() => { deleteUser(user.id); fetchUsers().then(setUsers); }}>
                                                     Delete
                                                 </Button>
                                             </td>
@@ -246,7 +257,7 @@ const AdminUserManagement: React.FC = () => {
                                             <td className="px-2 py-1 border-b">{user.email}</td>
                                             <td className="px-2 py-1 border-b">{user.createdAt ? new Date(user.createdAt).toLocaleString() : '-'}</td>
                                             <td className="px-2 py-1 border-b">
-                                                <Button variant="error" size="sm" onClick={() => { deleteUser(user.id); fetchUsers().then(setUsers); }}>
+                                                <Button variant="danger" size="sm" onClick={() => { deleteUser(user.id); fetchUsers().then(setUsers); }}>
                                                     Delete
                                                 </Button>
                                             </td>
@@ -277,7 +288,7 @@ const AdminUserManagement: React.FC = () => {
                                         Edit Image
                                     </Button>
                                     <Button
-                                        variant="error"
+                                        variant="danger"
                                         size="sm"
                                         onClick={() => { deleteClub(club.id); fetchClubs(); }}
                                     >

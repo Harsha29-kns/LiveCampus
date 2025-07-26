@@ -7,17 +7,17 @@ import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { Event } from '../types';
 import toast from 'react-hot-toast';
+import LoadingSpinner from '../components/ui/LoadingSpinner'; // Import the spinner component
 
 const CreateEvent: React.FC = () => {
-    // --- All original state, hooks, and logic are preserved ---
     const { id } = useParams<{ id?: string }>();
     const isEditMode = Boolean(id);
     const navigate = useNavigate();
-    const { createEvent, getEventById, updateEvent } = useEventStore();
+    const { createEvent, getEventById, updateEvent, fetchEvents } = useEventStore();
     const { user } = useAuthStore();
 
-    // Dedicated loading state for the submission process
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isLoading, setIsLoading] = useState(isEditMode); // Only load if in edit mode
 
     const [formData, setFormData] = useState({
         title: '',
@@ -35,27 +35,34 @@ const CreateEvent: React.FC = () => {
     const [errors, setErrors] = useState<Record<string, string>>({});
 
     useEffect(() => {
-        if (isEditMode && id) {
-            const event = getEventById(id);
-            if (event) {
-                setFormData({
-                    title: event.title || '',
-                    description: event.description || '',
-                    location: event.location || '',
-                    startDate: event.startDate ? new Date(event.startDate).toISOString().slice(0, 10) : '',
-                    startTime: event.startDate ? new Date(event.startDate).toISOString().slice(11, 16) : '',
-                    endDate: event.endDate ? new Date(event.endDate).toISOString().slice(0, 10) : '',
-                    endTime: event.endDate ? new Date(event.endDate).toISOString().slice(11, 16) : '',
-                    capacity: event.capacity ? String(event.capacity) : '',
-                    image: event.image || '',
-                    tags: event.tags ? event.tags.join(', ') : '',
-                });
-            } else {
-                toast.error("Event not found for editing.");
-                navigate('/events');
+        const loadEventData = async () => {
+            if (isEditMode && id) {
+                // Ensure events are fetched if not already in the store
+                await fetchEvents(); 
+                const event = getEventById(id);
+                if (event) {
+                    setFormData({
+                        title: event.title || '',
+                        description: event.description || '',
+                        location: event.location || '',
+                        startDate: event.startDate ? new Date(event.startDate).toISOString().slice(0, 10) : '',
+                        startTime: event.startDate ? new Date(event.startDate).toISOString().slice(11, 16) : '',
+                        endDate: event.endDate ? new Date(event.endDate).toISOString().slice(0, 10) : '',
+                        endTime: event.endDate ? new Date(event.endDate).toISOString().slice(11, 16) : '',
+                        capacity: event.capacity ? String(event.capacity) : '',
+                        image: event.image || '',
+                        tags: event.tags ? event.tags.join(', ') : '',
+                    });
+                } else {
+                    toast.error("Event not found for editing.");
+                    navigate('/events');
+                }
+                setIsLoading(false); // Stop loading after data is set
             }
-        }
-    }, [isEditMode, id, getEventById, navigate]);
+        };
+
+        loadEventData();
+    }, [isEditMode, id, getEventById, navigate, fetchEvents]);
 
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -159,7 +166,6 @@ const CreateEvent: React.FC = () => {
                 toast.success('Event updated successfully!');
             } else {
                 await createEvent(eventData);
-                // createEvent already shows a toast
             }
             navigate('/events');
 
@@ -167,12 +173,19 @@ const CreateEvent: React.FC = () => {
             console.error('Error creating/updating event:', error);
             toast.error(error.message || 'Failed to save the event. Please try again.');
         } finally {
-            // --- Set local loading state to false ---
             setIsSubmitting(false);
         }
     };
 
-    // --- New, improved JSX with 2-column layout and better UX ---
+    // Show a loading spinner if the component is fetching data for an existing event.
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center min-h-[60vh]">
+                <LoadingSpinner size="lg" text="Loading event details..." />
+            </div>
+        );
+    }
+
     return (
         <form onSubmit={handleSubmit} className="space-y-6 pb-24 animate-fade-in">
             {/* Header */}

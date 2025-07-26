@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 
 import { db } from '../firebaseConfig'; // Make sure this path is correct
 import { useAuthStore } from '../stores/authStore'; // Make sure this path is correct
+import LoadingSpinner from '../components/ui/LoadingSpinner'; // Import the spinner component
 
 // Define a type for our club data for better type safety
 interface ClubData {
@@ -111,10 +112,11 @@ const ClubProfile: React.FC<{ onClose?: () => void; onSave?: () => void }> = ({ 
   };
 
   // --- 4. RENDER THE COMPONENT ---
+  // Use the LoadingSpinner component for a better visual loading indicator
   if (isLoading) {
     return (
-      <div className="max-w-md mx-auto mt-10 p-6 text-center">
-        <p>Loading Profile...</p>
+      <div className="flex justify-center items-center min-h-[50vh]">
+        <LoadingSpinner size="lg" text="Loading Club Profile..." />
       </div>
     );
   }

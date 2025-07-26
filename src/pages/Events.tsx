@@ -225,7 +225,8 @@ const Events: React.FC = () => {
       {/* Events List */}
       <div className="space-y-4">
         {isLoading ? (
-          // Loading skeleton
+          // THIS IS THE LOADING INDICATOR
+          // It shows placeholder cards while your data is being fetched.
           Array.from({ length: 3 }).map((_, index) => (
             <Card key={index} className="animate-pulse">
               <CardBody className="flex flex-col md:flex-row gap-4">

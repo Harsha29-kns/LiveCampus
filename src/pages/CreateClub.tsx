@@ -8,6 +8,7 @@ import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import { User, Users, Phone, BookOpen, Image as ImageIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
+import LoadingSpinner from '../components/ui/LoadingSpinner'; // Import the spinner component
 
 interface UserOption {
   id: string;
@@ -27,46 +28,49 @@ const CreateClub = () => {
     image: '', 
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false); // For form submission
+  const [isLoading, setIsLoading] = useState(true); // For initial data fetch
   const [users, setUsers] = useState<UserOption[]>([]);
   const navigate = useNavigate();
   const { id } = useParams();
   const isEditMode = Boolean(id);
   const { fetchClubs } = useClubStore.getState();
 
-  
-  const fetchUsers = async () => {
-    const snapshot = await getDocs(collection(db, 'users'));
-    setUsers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserOption)));
-  };
-
-  
   useEffect(() => {
-    fetchUsers();
-  }, []);
+    const loadInitialData = async () => {
+      setIsLoading(true);
+      try {
+        const usersSnapshot = await getDocs(collection(db, 'users'));
+        setUsers(usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserOption)));
 
-  
-  useEffect(() => {
-    const fetchClubData = async () => {
-      if (id) {
-        const docRef = doc(db, 'clubs', id);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          setClubData({
-            name: data.name,
-            description: data.description,
-            presidentId: data.presidentId,
-            vicePresidentId: data.vicePresidentId,
-            facultyAdvisorId: data.facultyAdvisorId,
-            phoneNo: data.phoneNo,
-            image: data.logo, 
-          });
+        if (isEditMode && id) {
+          const docRef = doc(db, 'clubs', id);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            setClubData({
+              name: data.name || '',
+              description: data.description || '',
+              presidentId: data.presidentId || '',
+              vicePresidentId: data.vicePresidentId || '',
+              facultyAdvisorId: data.facultyAdvisorId || '',
+              phoneNo: data.phoneNo || '',
+              image: data.logo || '', 
+            });
+          } else {
+            toast.error("Club not found.");
+            navigate('/clubs');
+          }
         }
+      } catch (error) {
+        toast.error("Failed to load necessary data.");
+      } finally {
+        setIsLoading(false);
       }
     };
-    fetchClubData();
-  }, [id]);
+    
+    loadInitialData();
+  }, [id, isEditMode, navigate]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -97,7 +101,7 @@ const CreateClub = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
+    setIsSubmitting(true);
     try {
       // Get user names for display
       const president = users.find(u => u.id === clubData.presidentId)?.name || '';
@@ -165,14 +169,14 @@ const CreateClub = () => {
       console.error(error);
       toast.error(isEditMode ? 'Failed to update club' : 'Failed to create club');
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
   const handleDelete = async () => {
     if (!id) return;
     if (!window.confirm('Are you sure you want to delete this club? This action cannot be undone.')) return;
-    setIsLoading(true);
+    setIsSubmitting(true);
     try {
       await deleteDoc(doc(db, 'clubs', id));
       toast.success('Club deleted!');
@@ -181,9 +185,18 @@ const CreateClub = () => {
       console.error(error);
       toast.error('Failed to delete club');
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
+  
+  // Conditionally render the loading spinner while fetching initial data.
+  if (isLoading) {
+    return (
+        <div className="flex justify-center items-center min-h-[60vh]">
+            <LoadingSpinner size="lg" text={isEditMode ? "Loading club data..." : "Loading form..."} />
+        </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto py-10">
@@ -308,15 +321,6 @@ const CreateClub = () => {
                     <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
                   ))}
                 </select>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={fetchUsers}
-                  className="ml-2"
-                >
-                  Refresh Faculty List
-                </Button>
               </div>
               <div>
                 <label className="block text-sm font-medium text-neutral-700 mb-1" htmlFor="phoneNo">
@@ -340,7 +344,7 @@ const CreateClub = () => {
                 type="submit"
                 variant="primary"
                 size="lg"
-                isLoading={isLoading}
+                isLoading={isSubmitting}
                 className="px-8"
               >
                 {isEditMode ? 'Update Club' : 'Create Club'}
@@ -351,7 +355,7 @@ const CreateClub = () => {
                   variant="danger"
                   size="lg"
                   onClick={handleDelete}
-                  isLoading={isLoading}
+                  isLoading={isSubmitting}
                   className="px-8"
                 >
                   Delete Club
