@@ -7,6 +7,7 @@ import Maintenance from './pages/Maintenance';
 import PublicLayout from './layouts/PublicLayout';
 import DashboardLayout from './layouts/DashboardLayout';
 import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/react"
 
 // Pages
 import Login from './pages/Login';
@@ -145,6 +146,7 @@ function App() {
         <Route path="*" element={<NotFound />} />
       </Routes>
       <Analytics />
+      <SpeedInsights />
     </>
   );
 }
