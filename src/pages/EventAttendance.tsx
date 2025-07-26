@@ -7,9 +7,8 @@ import Button from '../components/ui/Button';
 import toast from 'react-hot-toast';
 import Input from '../components/ui/Input';
 import Badge from '../components/ui/Badge';
-import { UserCheck, UserX, Users, QrCode, Search, ArrowLeft, Video, VideoOff } from 'lucide-react';
+import { UserCheck, UserX, Users, QrCode, Search, ArrowLeft, VideoOff } from 'lucide-react';
 
-// --- A more stylish Toggle Switch to replace the checkbox ---
 const ToggleSwitch = ({ checked, onChange }: { checked: boolean; onChange: (checked: boolean) => void }) => (
     <label className="relative inline-flex items-center cursor-pointer">
         <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} className="sr-only peer" />
@@ -18,7 +17,6 @@ const ToggleSwitch = ({ checked, onChange }: { checked: boolean; onChange: (chec
 );
 
 const EventAttendance: React.FC = () => {
-    // --- All original state and hooks are preserved ---
     const { eventId } = useParams<{ eventId: string }>();
     const navigate = useNavigate();
     const [registrations, setRegistrations] = useState<any[]>([]);
@@ -26,8 +24,6 @@ const EventAttendance: React.FC = () => {
     const [showScanner, setShowScanner] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    
-    // --- State for the improved QR Scanner ---
     const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
     const [selectedDeviceId, setSelectedDeviceId] = useState<string | undefined>(undefined);
 
@@ -36,13 +32,10 @@ const EventAttendance: React.FC = () => {
             if (!eventId) return;
             setIsLoading(true);
             try {
-                // Fetch event details to show the title
                 const eventDoc = await getDoc(doc(db, 'events', eventId));
                 if (eventDoc.exists()) {
                     setEvent({ id: eventDoc.id, ...eventDoc.data() });
                 }
-
-                // Fetch registrations
                 const q = query(collection(db, 'eventRegistrations'), where('eventId', '==', eventId));
                 const snap = await getDocs(q);
                 const regsData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -56,28 +49,36 @@ const EventAttendance: React.FC = () => {
         fetchData();
     }, [eventId]);
 
-    // Effect to get camera devices when scanner is opened
     useEffect(() => {
-        if (!showScanner) return;
-        navigator.mediaDevices.enumerateDevices().then(devices => {
-            const videoInputs = devices.filter(d => d.kind === "videoinput");
-            setVideoDevices(videoInputs);
-            setSelectedDeviceId(videoInputs[0]?.deviceId);
-        });
+        const requestCameraPermission = async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                stream.getTracks().forEach(track => track.stop());
+
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoInputs = devices.filter(d => d.kind === "videoinput");
+                setVideoDevices(videoInputs);
+                setSelectedDeviceId(videoInputs[0]?.deviceId);
+            } catch (err) {
+                toast.error("Camera access denied. Please allow camera permission in your browser or device settings.");
+                setVideoDevices([]);
+            }
+        };
+
+        if (showScanner) {
+            requestCameraPermission();
+        }
     }, [showScanner]);
 
-    // --- All original handler logic is preserved ---
     const handleToggle = async (regId: string, present: boolean) => {
         const newStatus = present ? 'attended' : 'registered';
         const checkedInTime = present ? new Date().toISOString() : null;
-        
-        // Update Firestore
+
         await updateDoc(doc(db, 'eventRegistrations', regId), {
             status: newStatus,
             checkedInAt: checkedInTime,
         });
-        
-        // Update local state for instant UI feedback
+
         setRegistrations(regs =>
             regs.map(r => r.id === regId ? { ...r, status: newStatus, checkedInAt: checkedInTime } : r)
         );
@@ -107,8 +108,7 @@ const EventAttendance: React.FC = () => {
             }
         }
     };
-    
-    // --- Derived state for stats and filtering ---
+
     const filteredRegistrations = registrations.filter(reg =>
         reg.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         reg.regNo?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -124,7 +124,6 @@ const EventAttendance: React.FC = () => {
 
     return (
         <div className="animate-fade-in space-y-8">
-            {/* --- Header --- */}
             <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
                 <div>
                     <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="mb-2 -ml-2">
@@ -140,7 +139,6 @@ const EventAttendance: React.FC = () => {
                 </Button>
             </div>
 
-            {/* --- Stats Section --- */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-white p-4 rounded-lg border shadow-sm flex items-center gap-4">
                     <div className="p-3 bg-blue-100 rounded-full"><Users className="h-6 w-6 text-blue-600" /></div>
@@ -165,7 +163,6 @@ const EventAttendance: React.FC = () => {
                 </div>
             </div>
 
-            {/* --- Attendance List --- */}
             <div className="bg-white rounded-lg border shadow-sm">
                 <div className="p-4 border-b">
                     <Input
@@ -198,13 +195,11 @@ const EventAttendance: React.FC = () => {
                 </div>
             </div>
 
-            {/* --- QR Scanner Modal --- */}
             {showScanner && (
                 <div className="fixed inset-0 bg-black bg-opacity-80 flex flex-col items-center justify-center z-50 p-4 animate-fade-in">
                     <div className="bg-white rounded-xl p-6 w-full max-w-md text-center">
                         <h2 className="text-2xl font-bold mb-4">Scan Attendance QR</h2>
-                        
-                        {/* Camera Selection */}
+
                         {videoDevices.length > 1 && (
                             <select onChange={e => setSelectedDeviceId(e.target.value)} className="w-full mb-4 p-2 border rounded-md bg-gray-50">
                                 {videoDevices.map(device => (
@@ -212,12 +207,12 @@ const EventAttendance: React.FC = () => {
                                 ))}
                             </select>
                         )}
-                        
+
                         <div className="rounded-lg overflow-hidden border-2 border-indigo-500">
-                             {selectedDeviceId ? (
+                            {selectedDeviceId ? (
                                 <QrScanner
                                     delay={300}
-                                    onError={(err) => toast.error('QR scan error. Please check camera permissions.')}
+                                    onError={() => toast.error('QR scan error. Please check camera permissions.')}
                                     onScan={handleScan}
                                     constraints={{ video: { deviceId: { exact: selectedDeviceId } } }}
                                     style={{ width: "100%" }}
@@ -225,12 +220,12 @@ const EventAttendance: React.FC = () => {
                             ) : (
                                 <div className="bg-gray-100 h-64 flex flex-col items-center justify-center text-gray-600">
                                     <VideoOff size={48} className="mb-4" />
-                                    <p>No camera detected.</p>
-                                    <p className="text-sm">Please ensure you have a camera connected and have granted permissions.</p>
+                                    <p>No camera detected or permission denied.</p>
+                                    <p className="text-sm">Please ensure camera access is granted in browser or mobile settings.</p>
                                 </div>
                             )}
                         </div>
-                        
+
                         <Button variant="outline" onClick={() => setShowScanner(false)} className="mt-4 w-full">
                             Close Scanner
                         </Button>

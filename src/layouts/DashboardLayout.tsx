@@ -4,9 +4,6 @@ import { Calendar, User, LogOut, Bell, Menu, X, Users, Home, Settings, BarChart2
 import { useAuthStore } from '../stores/authStore';
 import { useNotificationStore } from '../stores/notificationStore';
 
-// NOTE: Errors from the previous version have been fixed.
-// The code no longer uses external libraries like Headless UI or date-fns.
-// The modern UI/UX is preserved using standard React hooks.
 
 const DashboardLayout: React.FC = () => {
     const { user, logout } = useAuthStore();
@@ -18,7 +15,7 @@ const DashboardLayout: React.FC = () => {
     const location = useLocation();
     const notificationsRef = useRef<HTMLDivElement>(null);
 
-    // --- Original hooks and logic are preserved and corrected ---
+
     useEffect(() => {
         if (user) {
             fetchNotifications(user.id);
@@ -29,7 +26,7 @@ const DashboardLayout: React.FC = () => {
         setSidebarOpen(false); // Close mobile sidebar on navigation
     }, [location.pathname]);
     
-    // Effect to close notifications dropdown when clicking outside
+
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (notificationsRef.current && !notificationsRef.current.contains(event.target as Node)) {
@@ -50,7 +47,7 @@ const DashboardLayout: React.FC = () => {
     
     const handleNotificationClick = (notificationId: string) => {
         markAsRead(notificationId);
-        setNotificationsOpen(false); // Close dropdown after click
+        setNotificationsOpen(false); 
     };
     
     const menuItems = [
