@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebaseConfig';
-import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
+import { collection, query, where, getDocs, updateDoc, doc, getDoc } from 'firebase/firestore';
 import * as XLSX from 'xlsx';
 import Button from '../components/ui/Button';
 import toast from 'react-hot-toast';
@@ -17,13 +17,20 @@ const EventMarks: React.FC = () => {
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!eventId) return;
       setIsLoading(true);
       try {
-        const eventSnap = await getDocs(query(collection(db, 'events'), where('id', '==', eventId)));
-        if (!eventSnap.empty) {
-          const eventData = eventSnap.docs[0].data();
+        const eventRef = doc(db, 'events', eventId);
+        const eventSnap = await getDoc(eventRef);
+
+        if (eventSnap.exists()) {
+          const eventData = eventSnap.data();
           setEventTitle(eventData.title || '');
-          setEventStatus(eventData.approvalStatus || '');
+          setEventStatus(eventData.status || '');
+        } else {
+          toast.error("Event not found.");
+          navigate('/marks');
+          return;
         }
 
         const regsQuery = query(collection(db, 'eventRegistrations'), where('eventId', '==', eventId));
@@ -44,7 +51,7 @@ const EventMarks: React.FC = () => {
       }
     };
     fetchData();
-  }, [eventId]);
+  }, [eventId, navigate]);
 
   const handleMarksChange = (regId: string, value: string) => {
     setMarksData(prev => ({ ...prev, [regId]: value }));
@@ -82,9 +89,9 @@ const EventMarks: React.FC = () => {
     <div className="max-w-3xl mx-auto mt-8 p-4 bg-white rounded shadow">
       <h2 className="text-2xl font-bold mb-4">Attendance & Marks Entry</h2>
 
-      {eventStatus && eventStatus !== 'approved' ? (
+      {eventStatus !== 'approved' ? (
         <p className="text-red-500 font-semibold">
-          This event has been <span className="uppercase">{eventStatus}</span>. Marks entry is disabled.
+          This event is currently <span className="uppercase">{eventStatus}</span>. Marks entry is disabled until the event is approved.
         </p>
       ) : (
         <>
@@ -130,7 +137,7 @@ const EventMarks: React.FC = () => {
         </>
       )}
 
-      <Button onClick={() => navigate(-1)} variant="outline" className="ml-2">Back</Button>
+      <Button onClick={() => navigate(-1)} variant="outline" className="mt-4">Back</Button>
     </div>
   );
 };

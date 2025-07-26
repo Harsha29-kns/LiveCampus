@@ -174,12 +174,12 @@ export const useEventStore = create<EventState>((set, get) => ({
         status: 'rejected',
         updatedAt: new Date().toISOString(),
       });
-      await deleteDoc(doc(db, 'events', id));
-      toast.success('Event rejected and deleted');
+      toast.success('Event rejected');
       set({ isLoading: false });
-      return null;
+      const updatedEvent = get().getEventById(id);
+      return updatedEvent ? { ...updatedEvent, status: 'rejected' } : null;
     } catch (error) {
-      toast.error('Failed to reject and delete event');
+      toast.error('Failed to reject event');
       set({ isLoading: false });
       return null;
     }

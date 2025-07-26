@@ -35,6 +35,10 @@ const EventAttendance: React.FC = () => {
         const eventDoc = await getDoc(doc(db, 'events', eventId));
         if (eventDoc.exists()) {
           setEvent({ id: eventDoc.id, ...eventDoc.data() });
+        } else {
+            toast.error("Event not found.");
+            navigate('/attendance');
+            return;
         }
         const q = query(collection(db, 'eventRegistrations'), where('eventId', '==', eventId));
         const snap = await getDocs(q);
@@ -47,7 +51,7 @@ const EventAttendance: React.FC = () => {
       }
     };
     fetchData();
-  }, [eventId]);
+  }, [eventId, navigate]);
 
   useEffect(() => {
     const requestCameraPermission = async () => {
@@ -122,11 +126,10 @@ const EventAttendance: React.FC = () => {
     return <div className="text-center p-12">Loading Attendance Data...</div>;
   }
 
-  if (!isLoading && event && event.approvalStatus && event.approvalStatus !== 'approved') {
- 
+  if (event?.status !== 'approved') {
     return (
       <div className="text-center p-12 text-red-600 font-semibold">
-        This event is currently <span className="uppercase">{event.approvalStatus}</span>. Attendance tracking is disabled.
+        This event is currently <span className="uppercase">{event.status}</span>. Attendance tracking is disabled until the event is approved.
       </div>
     );
   }
