@@ -8,7 +8,7 @@ import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import { User, Users, Phone, BookOpen, Image as ImageIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
-import LoadingSpinner from '../components/ui/LoadingSpinner'; // Import the spinner component
+import LoadingSpinner from '../components/ui/LoadingSpinner'; 
 
 interface UserOption {
   id: string;

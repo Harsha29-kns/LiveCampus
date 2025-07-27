@@ -64,7 +64,7 @@ const AdminUserManagement: React.FC = () => {
         // setIsUploading(false);
     };
 
-    const students = users.filter(u => u.role === 'student');
+    const students = users.filter(u => u.role === 'student' && u.status === 'approved');
     const clubsUsers = users.filter(u => u.role === 'club' && u.status === 'approved');
     const facultyUsers = users.filter(u => u.role === 'faculty' && u.status === 'approved');
 
