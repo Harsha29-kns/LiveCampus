@@ -15,21 +15,19 @@ import LoadingSpinner from '../components/ui/LoadingSpinner'; // Import the spin
 const ClubDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getClubById, fetchClubs, joinClub, leaveClub } = useClubStore();
+  const { getClubById, fetchClubs } = useClubStore();
   const { events, fetchEvents } = useEventStore();
   const { user } = useAuthStore();
-  const [club, setClub] = useState(getClubById(id || ''));
+  const [club, setClub] = useState<any>(null);
   const [clubEvents, setClubEvents] = useState<Event[]>([]);
-  const [isMember, setIsMember] = useState(false);
-  const [isActionLoading, setIsActionLoading] = useState(false);
-  const [isLoading, setIsLoading] = useState(true); // State to manage initial loading
+  const [isLoading, setIsLoading] = useState(true);
 
+  // Effect for fetching initial data
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
       try {
-        let currentClub = club;
-        // Fetch clubs only if not already available
+        let currentClub = getClubById(id || '');
         if (!currentClub) {
           await fetchClubs();
           currentClub = getClubById(id || '');
@@ -37,16 +35,14 @@ const ClubDetails: React.FC = () => {
 
         if (currentClub) {
           setClub(currentClub);
-          // Fetch events after confirming the club exists
-          await fetchEvents();
-          const filteredEvents = events.filter(
-            event => event.organizerId === id && event.organizerType === 'club'
-          );
-          setClubEvents(filteredEvents);
         } else {
           toast.error('Club not found');
           navigate('/clubs');
           return;
+        }
+
+        if (events.length === 0) {
+          await fetchEvents();
         }
       } catch (error) {
         toast.error("Failed to load club details.");
@@ -55,40 +51,21 @@ const ClubDetails: React.FC = () => {
       }
     };
     loadData();
-  }, [id]); // Simplified dependencies to run once on load
+  }, [id, navigate, fetchClubs, getClubById, fetchEvents, events.length]);
 
-  // Simulate membership check (replace with real logic)
+  // Effect for filtering events once data is loaded
   useEffect(() => {
-    if (club) { // Only run after club data is loaded
-      setIsMember(Math.random() > 0.5);
+    if (club && events.length > 0) {
+      const now = new Date();
+      const upcomingEvents = events.filter(
+        (event) =>
+          event.organizerId === club.id &&
+          event.organizerType === 'club' &&
+          parseISO(event.endDate) >= now
+      );
+      setClubEvents(upcomingEvents);
     }
-  }, [club]);
-
-  const handleJoin = async () => {
-    if (!id || !user) return;
-    setIsActionLoading(true);
-    const success = await joinClub(id, user.id);
-    if (success) {
-      setIsMember(true);
-      toast.success(`You've joined ${club.name}`);
-      const updatedClub = getClubById(id);
-      if (updatedClub) setClub(updatedClub);
-    }
-    setIsActionLoading(false);
-  };
-
-  const handleLeave = async () => {
-    if (!id || !user) return;
-    setIsActionLoading(true);
-    const success = await leaveClub(id, user.id);
-    if (success) {
-      setIsMember(false);
-      toast.success(`You've left ${club.name}`);
-      const updatedClub = getClubById(id);
-      if (updatedClub) setClub(updatedClub);
-    }
-    setIsActionLoading(false);
-  };
+  }, [club, events]);
 
   const handleShare = () => {
     if (navigator.share) {
@@ -106,7 +83,6 @@ const ClubDetails: React.FC = () => {
     }
   };
 
-  // This will now display a full-page spinner while fetching data.
   if (isLoading) {
     return (
       <div className="flex justify-center items-center min-h-[60vh]">
@@ -114,23 +90,21 @@ const ClubDetails: React.FC = () => {
       </div>
     );
   }
-  
-  // This is a fallback for the rare case where loading finishes but club is still null.
+
   if (!club) {
-      return (
-          <div className="text-center py-16">
-              <h2 className="text-xl font-bold">Club Not Found</h2>
-              <p className="text-neutral-500">The club you are looking for may have been removed.</p>
-              <Button onClick={() => navigate('/clubs')} className="mt-4">Back to Clubs</Button>
-          </div>
-      )
+    return (
+      <div className="text-center py-16">
+        <h2 className="text-xl font-bold">Club Not Found</h2>
+        <p className="text-neutral-500">The club you are looking for may have been removed.</p>
+        <Button onClick={() => navigate('/clubs')} className="mt-4">Back to Clubs</Button>
+      </div>
+    );
   }
 
   const isAdmin = user?.role === 'admin';
   const isPresident = user?.id === club.presidentId;
   const isFacultyAdvisor = user?.id === club.facultyAdvisorId;
   const canEdit = isAdmin || isPresident || isFacultyAdvisor;
-  const isStudent = user?.role === 'student';
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -312,43 +286,7 @@ const ClubDetails: React.FC = () => {
                         </div>
                     </CardBody>
                 </Card>
-                {/* Membership Card */}
-                {!isStudent && (
-                    <Card>
-                        <CardBody>
-                            {isMember ? (
-                                <>
-                                    <div className="bg-green-50 text-green-800 rounded-md p-3 mb-4 flex items-center">
-                                        <Users className="w-5 h-5 mr-2" />
-                                        <span>You're a member of this club!</span>
-                                    </div>
-                                    <Button
-                                        variant="outline"
-                                        fullWidth
-                                        onClick={handleLeave}
-                                        isLoading={isActionLoading}
-                                    >
-                                        Leave Club
-                                    </Button>
-                                </>
-                            ) : (
-                                <>
-                                    <h3 className="text-lg font-medium text-neutral-900 mb-2">Join this Club</h3>
-                                    <p className="text-neutral-700 mb-4">
-                                        Become a member to participate in club activities and events.
-                                    </p>
-                                    <Button
-                                        fullWidth
-                                        onClick={handleJoin}
-                                        isLoading={isActionLoading}
-                                    >
-                                        Join Now
-                                    </Button>
-                                </>
-                            )}
-                        </CardBody>
-                    </Card>
-                )}
+
                 {/* Contact Button */}
                 <Button
                     variant="outline"
