@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebaseConfig';
-import { collection, query, where, getDocs, updateDoc, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, updateDoc, doc, getDoc, runTransaction } from 'firebase/firestore';
 import QrScanner from 'react-qr-scanner';
 import Button from '../components/ui/Button';
 import toast from 'react-hot-toast';
@@ -75,18 +75,48 @@ const EventAttendance: React.FC = () => {
   }, [showScanner]);
 
   const handleToggle = async (regId: string, present: boolean) => {
-    const newStatus = present ? 'attended' : 'registered';
-    const checkedInTime = present ? new Date().toISOString() : null;
+    try {
+        await runTransaction(db, async (transaction) => {
+            const regRef = doc(db, 'eventRegistrations', regId);
+            const regDoc = await transaction.get(regRef);
+            if (!regDoc.exists()) {
+                throw new Error("Registration not found!");
+            }
 
-    await updateDoc(doc(db, 'eventRegistrations', regId), {
-      status: newStatus,
-      checkedInAt: checkedInTime,
-    });
+            const userId = regDoc.data().userId;
+            const userRef = doc(db, 'users', userId);
+            const userDoc = await transaction.get(userRef);
+            if (!userDoc.exists()) {
+                throw new Error("User not found!");
+            }
 
-    setRegistrations(regs =>
-      regs.map(r => r.id === regId ? { ...r, status: newStatus, checkedInAt: checkedInTime } : r)
-    );
-  };
+            const newStatus = present ? 'attended' : 'registered';
+            const checkedInTime = present ? new Date().toISOString() : null;
+
+            transaction.update(regRef, {
+                status: newStatus,
+                checkedInAt: checkedInTime
+            });
+
+            // Gamification: Award points for attendance
+            const currentPoints = userDoc.data().points || 0;
+            if (present && regDoc.data().status !== 'attended') {
+                transaction.update(userRef, { points: currentPoints + 3 });
+            } else if (!present && regDoc.data().status === 'attended') { // Revert points if marked absent
+                transaction.update(userRef, { points: currentPoints - 3 });
+            }
+        });
+
+        setRegistrations(regs =>
+            regs.map(r => r.id === regId ? { ...r, status: present ? 'attended' : 'registered', checkedInAt: present ? new Date().toISOString() : null } : r)
+        );
+
+    } catch (error) {
+        console.error("Error updating attendance:", error);
+        toast.error("Failed to update attendance.");
+    }
+};
+
 
   const handleScan = async (data: any) => {
     if (data?.text) {

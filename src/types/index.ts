@@ -9,6 +9,7 @@ export interface User {
   department?: string;
   year?: number;
   clubId?: string;
+  points?: number; // Points for participation
   createdAt: string;
   updatedAt: string;
 }
@@ -45,7 +46,8 @@ export interface Club {
   facultyAdvisor: string;
   facultyAdvisorId: string;
   phoneNo?: string;
-  memberCount: number;
+  memberCount: number
+  points?: number;
   tags: string[];
   createdAt: string;
   updatedAt: string;

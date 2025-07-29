@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, Fragment } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Calendar, User, LogOut, Bell, Menu, X, Users, Home, Settings, BarChart2, QrCode } from 'lucide-react';
+import { Calendar, User, LogOut, Bell, Menu, X, Users, Home, Settings, BarChart2, QrCode, Trophy, MessageSquare } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useNotificationStore } from '../stores/notificationStore';
 
@@ -55,6 +55,8 @@ const DashboardLayout: React.FC = () => {
         { to: '/events', icon: <Calendar size={22} />, label: 'Events' },
         { to: '/clubs', icon: <Users size={22} />, label: 'Clubs' },
         { to: '/profile', icon: <User size={22} />, label: 'Profile' },
+        { to: '/leaderboard', icon: <Trophy size={22} />, label: 'Leaderboard' },
+       
     ];
 
     if (user?.role === 'admin') {

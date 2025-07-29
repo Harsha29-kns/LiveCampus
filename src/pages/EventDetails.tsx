@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     Calendar, MapPin, Users, ArrowLeft, Edit, Trash2, CheckCircle, XCircle,
-    Share2, Info, AlertTriangle, PartyPopper, Ticket, Settings, ClipboardList
+    Share2, Info, AlertTriangle, PartyPopper, Ticket, Settings, ClipboardList, Star
 } from 'lucide-react';
 import { useEventStore } from '../stores/eventStore';
 import { useAuthStore } from '../stores/authStore';
@@ -10,21 +10,35 @@ import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import Input from '../components/ui/Input';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isPast } from 'date-fns';
 import toast from 'react-hot-toast';
 import { doc, getDoc, query, collection, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import QRCode from 'react-qr-code';
 import { toPng } from 'html-to-image';
-import LoadingSpinner from '../components/ui/LoadingSpinner'; // Import the spinner component
+import LoadingSpinner from '../components/ui/LoadingSpinner';
+
+// New component for star ratings
+const StarRating = ({ rating, setRating, disabled = false }: { rating: number, setRating: (rating: number) => void, disabled?: boolean }) => (
+    <div className="flex space-x-1">
+        {[1, 2, 3, 4, 5].map((star) => (
+            <Star
+                key={star}
+                className={`cursor-pointer ${rating >= star ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'} ${disabled ? 'cursor-not-allowed' : ''}`}
+                onClick={() => !disabled && setRating(star)}
+            />
+        ))}
+    </div>
+);
+
 
 const EventDetails: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const { getEventById, fetchEvents, approveEvent, rejectEvent, deleteEvent, registerForEvent, cancelRegistration } = useEventStore();
+    const { getEventById, fetchEvents, approveEvent, rejectEvent, deleteEvent, registerForEvent, cancelRegistration, submitFeedback } = useEventStore();
     const { user } = useAuthStore();
     const [event, setEvent] = useState(getEventById(id || ''));
-    const [isLoading, setIsLoading] = useState(true); // State to manage loading
+    const [isLoading, setIsLoading] = useState(true);
     const [isRegistered, setIsRegistered] = useState(false);
     const [isActionLoading, setIsActionLoading] = useState(false);
     const [registrationData, setRegistrationData] = useState({
@@ -33,10 +47,20 @@ const EventDetails: React.FC = () => {
     const [regErrors, setRegErrors] = useState<Record<string, string>>({});
     const [club, setClub] = useState<any>(null);
     const qrRef = useRef<HTMLDivElement>(null);
+    const [attended, setAttended] = useState(false);
+    const [feedback, setFeedback] = useState({
+        overallExperience: 0,
+        eventOrganization: 0,
+        activitiesEnjoyment: 0,
+        recommendationLikelihood: 0,
+        comment: ''
+    });
+    const [hasGivenFeedback, setHasGivenFeedback] = useState(false);
+
 
     useEffect(() => {
         const loadEvent = async () => {
-            setIsLoading(true); // Start loading
+            setIsLoading(true);
             try {
                 let fetchedEvent = getEventById(id || '');
                 if (!fetchedEvent) {
@@ -46,6 +70,9 @@ const EventDetails: React.FC = () => {
 
                 if (fetchedEvent) {
                     setEvent(fetchedEvent);
+                    if (user && fetchedEvent.feedback?.some(f => f.userId === user.id)) {
+                        setHasGivenFeedback(true);
+                    }
                 } else {
                     toast.error('Event not found');
                     navigate('/events');
@@ -53,11 +80,11 @@ const EventDetails: React.FC = () => {
             } catch (error) {
                 toast.error("Could not load event details.");
             } finally {
-                setIsLoading(false); // Stop loading
+                setIsLoading(false);
             }
         };
         loadEvent();
-    }, [id, getEventById, fetchEvents, navigate]);
+    }, [id, getEventById, fetchEvents, navigate, user]);
 
     useEffect(() => {
         const checkRegistration = async () => {
@@ -66,7 +93,9 @@ const EventDetails: React.FC = () => {
             const snapshot = await getDocs(q);
             setIsRegistered(!snapshot.empty);
             if (!snapshot.empty) {
-                setRegistrationData(snapshot.docs[0].data());
+                const regData = snapshot.docs[0].data();
+                setRegistrationData(regData);
+                setAttended(regData.status === 'attended');
             }
         };
         checkRegistration();
@@ -103,7 +132,7 @@ const EventDetails: React.FC = () => {
         }
         setIsActionLoading(false);
     };
-    
+
     const handleDelete = async () => {
         if (!id) return;
         setIsActionLoading(true);
@@ -159,6 +188,21 @@ const EventDetails: React.FC = () => {
         link.click();
     };
 
+    const handleFeedbackSubmit = async () => {
+        if (Object.values(feedback).some(v => typeof v === 'number' && v === 0)) {
+            toast.error("Please provide a rating for all questions.");
+            return;
+        }
+        if (!id || !user) return;
+        setIsActionLoading(true);
+        const success = await submitFeedback(id, user.id, feedback);
+        if (success) {
+            setHasGivenFeedback(true);
+        }
+        setIsActionLoading(false);
+    };
+
+
     if (isLoading) {
         return (
             <div className="flex justify-center items-center h-screen">
@@ -166,21 +210,20 @@ const EventDetails: React.FC = () => {
             </div>
         );
     }
-    
+
     if (!event) {
-        // This handles the case where loading is done but the event wasn't found.
-        // It prevents the rest of the component from trying to render with null data.
         return null;
     }
-    
+
     const isAdmin = user?.role === 'admin';
     const isOrganizer = user?.id === event.createdBy || isAdmin || (user?.role === event.organizerType && user.id === event.organizerId);
     const isPending = event.status === 'pending';
     const isApproved = event.status === 'approved';
     const isRejected = event.status === 'rejected';
     const isCancelled = event.status === 'cancelled';
-    const isCompleted = new Date(event.endDate) < new Date() && !isCancelled;
+    const isCompleted = isPast(parseISO(event.endDate));
     const isFull = event.capacity ? event.registeredCount >= event.capacity : false;
+
 
     return (
         <div className="bg-gray-50 min-h-screen animate-fade-in">
@@ -190,8 +233,8 @@ const EventDetails: React.FC = () => {
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent" />
                 <div className="absolute inset-0 flex flex-col justify-end text-white p-4 md:p-8">
                     <div className="max-w-7xl mx-auto w-full">
-                        <div className="absolute top-4 left-4 md:top-6 md:left-6"><Button variant="ghost-white" size="sm" leftIcon={<ArrowLeft size={16} />} onClick={() => navigate('/events')}>Back</Button></div>
-                        {isOrganizer && isApproved && !isCompleted && (<div className="absolute top-4 right-4 md:top-6 md:right-6 flex gap-2"><Button variant="ghost-white" size="sm" leftIcon={<Edit size={16} />} onClick={() => navigate(`/events/edit/${event.id}`)}>Edit</Button><Button variant="destructive-outline" size="sm" leftIcon={<Trash2 size={16} />} onClick={handleDelete} isLoading={isActionLoading}>Delete</Button></div>)}
+                        <div className="absolute top-4 left-4 md:top-6 md:left-6"><Button variant="ghost" size="sm" leftIcon={<ArrowLeft size={16} />} onClick={() => navigate('/events')}>Back</Button></div>
+                        {isOrganizer && isApproved && !isCompleted && (<div className="absolute top-4 right-4 md:top-6 md:right-6 flex gap-2"><Button variant="ghost" size="sm" leftIcon={<Edit size={16} />} onClick={() => navigate(`/events/edit/${event.id}`)}>Edit</Button><Button variant="danger" size="sm" leftIcon={<Trash2 size={16} />} onClick={handleDelete} isLoading={isActionLoading}>Delete</Button></div>)}
                         <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight drop-shadow-lg">{event.title}</h1>
                         <p className="mt-2 text-lg md:text-xl text-gray-200 drop-shadow-md">Organized by {event.organizerName}</p>
                     </div>
@@ -208,10 +251,56 @@ const EventDetails: React.FC = () => {
                         {isRejected && <div className="bg-red-100 border-l-4 border-red-500 text-red-800 p-4 rounded-r-md flex items-center gap-3"><XCircle/><div><p className="font-bold">Event Rejected</p></div></div>}
                         {isCompleted && <div className="bg-blue-100 border-l-4 border-blue-500 text-blue-800 p-4 rounded-r-md flex items-center gap-3"><CheckCircle/><div><p className="font-bold">Event Completed</p></div></div>}
                         
-                        {isAdmin && isPending && (<Card className="border-yellow-300 bg-yellow-50"><CardHeader><h3 className="text-lg font-bold text-yellow-900">Admin Approval Required</h3></CardHeader><CardBody className="flex items-center gap-4"><p className="text-sm text-yellow-800 flex-grow">Review the details and take action.</p><Button size="sm" leftIcon={<CheckCircle size={16}/>} onClick={handleApprove} isLoading={isActionLoading}>Approve</Button><Button size="sm" variant="destructive" leftIcon={<XCircle size={16}/>} onClick={handleReject} isLoading={isActionLoading}>Reject</Button></CardBody></Card>)}
+                        {isAdmin && isPending && (<Card className="border-yellow-300 bg-yellow-50"><CardHeader><h3 className="text-lg font-bold text-yellow-900">Admin Approval Required</h3></CardHeader><CardBody className="flex items-center gap-4"><p className="text-sm text-yellow-800 flex-grow">Review the details and take action.</p><Button size="sm" leftIcon={<CheckCircle size={16}/>} onClick={handleApprove} isLoading={isActionLoading}>Approve</Button><Button size="sm" variant="danger" leftIcon={<XCircle size={16}/>} onClick={handleReject} isLoading={isActionLoading}>Reject</Button></CardBody></Card>)}
 
                         <Card><CardHeader><h2 className="text-2xl font-bold text-gray-900">About This Event</h2></CardHeader><CardBody><p className="text-gray-700 text-lg whitespace-pre-line leading-relaxed">{event.description}</p>{event.tags?.length > 0 && <div className="mt-6 flex flex-wrap gap-2">{event.tags.map(tag => <Badge key={tag} variant="neutral">{tag}</Badge>)}</div>}</CardBody></Card>
                         {club && <Card><CardHeader><h2 className="text-2xl font-bold text-gray-900">About the Organizer</h2></CardHeader><CardBody className="text-gray-700 space-y-2"><div><strong>Club:</strong> {club.name}</div></CardBody></Card>}
+                        
+                        {isCompleted && attended && (
+                            <Card>
+                                <CardHeader><h2 className="text-2xl font-bold text-gray-900">Event Feedback</h2></CardHeader>
+                                <CardBody>
+                                    {hasGivenFeedback ? (
+                                        <div className="text-center p-6 bg-green-50 rounded-lg">
+                                            <CheckCircle className="mx-auto h-12 w-12 text-green-500" />
+                                            <p className="mt-4 font-semibold text-green-800">You have already submitted feedback for this event. Thank you!</p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-6">
+                                            <div className="space-y-2">
+                                                <label className="block font-medium text-gray-800">How would you rate your overall experience?</label>
+                                                <StarRating rating={feedback.overallExperience} setRating={(r) => setFeedback({ ...feedback, overallExperience: r })} />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="block font-medium text-gray-800">How well was the event organized?</label>
+                                                <StarRating rating={feedback.eventOrganization} setRating={(r) => setFeedback({ ...feedback, eventOrganization: r })} />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="block font-medium text-gray-800">How much did you enjoy the activities?</label>
+                                                <StarRating rating={feedback.activitiesEnjoyment} setRating={(r) => setFeedback({ ...feedback, activitiesEnjoyment: r })} />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="block font-medium text-gray-800">How likely are you to recommend similar events?</label>
+                                                <StarRating rating={feedback.recommendationLikelihood} setRating={(r) => setFeedback({ ...feedback, recommendationLikelihood: r })} />
+                                            </div>
+                                            <div>
+                                                <label htmlFor="comment" className="block font-medium text-gray-800">Additional Comments (optional)</label>
+                                                <textarea
+                                                    id="comment"
+                                                    rows={4}
+                                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                                                    value={feedback.comment}
+                                                    onChange={(e) => setFeedback({ ...feedback, comment: e.target.value })}
+                                                />
+                                            </div>
+                                            <Button onClick={handleFeedbackSubmit} isLoading={isActionLoading}>Submit Feedback</Button>
+                                        </div>
+                                    )}
+                                </CardBody>
+                            </Card>
+                        )}
+
+
                     </main>
 
                     {/* Right Column (Unified Action Panel) */}

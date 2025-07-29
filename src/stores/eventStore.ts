@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, where, getDoc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, where, getDoc, runTransaction } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { Event, User } from '../types';
 import toast from 'react-hot-toast';
@@ -18,6 +18,7 @@ interface EventState {
   registerForEvent: (eventId: string, userId: string, registrationData?: Partial<Event>) => Promise<boolean>;
   cancelRegistration: (eventId: string, userId: string) => Promise<boolean>;
   fetchRegisteredEvents: (userId: string) => Promise<Event[]>;
+  submitFeedback: (eventId: string, userId: string, rating: number, comment: string) => Promise<boolean>;
 }
 
 export const useEventStore = create<EventState>((set, get) => ({
@@ -41,46 +42,70 @@ export const useEventStore = create<EventState>((set, get) => ({
 
   createEvent: async (eventData) => {
     set({ isLoading: true });
+    const { user } = useAuthStore.getState();
+    if (!user) {
+        toast.error("You must be logged in to create an event.");
+        set({ isLoading: false });
+        return null;
+    }
+
     try {
-      const docRef = await addDoc(collection(db, 'events'), {
-        ...eventData,
-        registeredCount: 0,
-        status: eventData?.organizerType === 'admin' ? 'approved' : 'pending',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
+        const docRef = await addDoc(collection(db, 'events'), {
+            ...eventData,
+            registeredCount: 0,
+            status: eventData?.organizerType === 'admin' ? 'approved' : 'pending',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+        });
 
-      if (eventData?.organizerType === 'admin') {
-        toast.success('Event created and approved!');
-        // Send email notification immediately for admin-created events
-        const { fetchUsers } = useAuthStore.getState();
-        const allUsers = await fetchUsers();
-        const students = allUsers.filter((user: User) => user.role === 'student');
-
-        if (students.length > 0) {
-          try {
-            await fetch('https://live-campus.vercel.app/api/event-notification', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ event: { id: docRef.id, ...eventData }, students }),
-            });
-            toast.success('Event notification sent to students!');
-          } catch (emailError) {
-            toast.error('Event created, but mail is not sent.');
-            console.error('Email sending error:', emailError);
-          }
+        // Gamification: Award points to the organizer
+        if (user.role === 'club' && user.clubId) {
+            const clubRef = doc(db, 'clubs', user.clubId);
+            const clubSnap = await getDoc(clubRef);
+            if (clubSnap.exists()) {
+                const currentPoints = clubSnap.data().points || 0;
+                await updateDoc(clubRef, { points: currentPoints + 5 });
+            }
+        } else { // faculty or admin
+            const userRef = doc(db, 'users', user.id);
+            const userSnap = await getDoc(userRef);
+            if (userSnap.exists()) {
+                const currentPoints = userSnap.data().points || 0;
+                await updateDoc(userRef, { points: currentPoints + 5 });
+            }
         }
-      } else {
-        toast.success('Event created! Awaiting admin approval.');
-      }
 
-      set({ isLoading: false });
-      return { id: docRef.id, ...eventData } as Event;
+
+        if (eventData?.organizerType === 'admin') {
+            toast.success('Event created and approved!');
+            const { fetchUsers } = useAuthStore.getState();
+            const allUsers = await fetchUsers();
+            const students = allUsers.filter((u: User) => u.role === 'student');
+
+            if (students.length > 0) {
+                try {
+                    await fetch('https://live-campus.vercel.app/api/event-notification', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ event: { id: docRef.id, ...eventData }, students }),
+                    });
+                    toast.success('Event notification sent to students!');
+                } catch (emailError) {
+                    toast.error('Event created, but mail is not sent.');
+                    console.error('Email sending error:', emailError);
+                }
+            }
+        } else {
+            toast.success('Event created! Awaiting admin approval.');
+        }
+
+        set({ isLoading: false });
+        return { id: docRef.id, ...eventData } as Event;
     } catch (error) {
-      console.error('Create event error:', error);
-      toast.error('Failed to create event');
-      set({ isLoading: false });
-      return null;
+        console.error('Create event error:', error);
+        toast.error('Failed to create event');
+        set({ isLoading: false });
+        return null;
     }
   },
 
@@ -104,7 +129,6 @@ export const useEventStore = create<EventState>((set, get) => ({
       });
       toast.success('Event approved!');
 
-      // Send notification only if the event was created by a club or faculty
       if (eventToApprove.organizerType === 'club' || eventToApprove.organizerType === 'faculty') {
         const { fetchUsers } = useAuthStore.getState();
         const allUsers = await fetchUsers();
@@ -124,7 +148,7 @@ export const useEventStore = create<EventState>((set, get) => ({
           }
         }
       }
-      
+
       const updatedEvent = get().getEventById(id);
       set({ isLoading: false });
       return updatedEvent ? { ...updatedEvent, status: 'approved' } : null;
@@ -188,28 +212,45 @@ export const useEventStore = create<EventState>((set, get) => ({
   registerForEvent: async (eventId, userId, registrationData) => {
     set({ isLoading: true });
     try {
-      await addDoc(collection(db, 'eventRegistrations'), {
-        eventId,
-        userId,
-        status: 'registered',
-        registeredAt: new Date().toISOString(),
-        ...(registrationData || {})
-      });
-      const event = get().getEventById(eventId);
-      if (event) {
-        await updateDoc(doc(db, 'events', eventId), {
-          registeredCount: (event.registeredCount || 0) + 1,
+        await runTransaction(db, async (transaction) => {
+            const userRef = doc(db, 'users', userId);
+            const eventRef = doc(db, 'events', eventId);
+            const userDoc = await transaction.get(userRef);
+            const eventDoc = await transaction.get(eventRef);
+
+            if (!userDoc.exists() || !eventDoc.exists()) {
+                throw new Error("User or Event not found!");
+            }
+
+            // Add registration
+            const regRef = doc(collection(db, 'eventRegistrations'));
+            transaction.set(regRef, {
+                eventId,
+                userId,
+                status: 'registered',
+                registeredAt: new Date().toISOString(),
+                ...(registrationData || {})
+            });
+
+            // Update event registration count
+            const currentRegCount = eventDoc.data().registeredCount || 0;
+            transaction.update(eventRef, { registeredCount: currentRegCount + 1 });
+
+            // Gamification: Update user points for registering
+            const currentPoints = userDoc.data().points || 0;
+            transaction.update(userRef, { points: currentPoints + 1 });
         });
-      }
-      toast.success('Registered for event!');
-      set({ isLoading: false });
-      return true;
+
+        toast.success('Registered for event!');
+        set({ isLoading: false });
+        return true;
     } catch (error) {
-      toast.error('Failed to register');
-      set({ isLoading: false });
-      return false;
+        toast.error('Failed to register');
+        set({ isLoading: false });
+        return false;
     }
-  },
+},
+
 
   cancelRegistration: async (eventId, userId) => {
     set({ isLoading: true });
@@ -258,4 +299,55 @@ export const useEventStore = create<EventState>((set, get) => ({
         return [];
     }
   },
+
+  submitFeedback: async (eventId, userId, rating, comment) => {
+    set({ isLoading: true });
+    try {
+        await runTransaction(db, async (transaction) => {
+            const eventRef = doc(db, 'events', eventId);
+            const userRef = doc(db, 'users', userId);
+            const eventDoc = await transaction.get(eventRef);
+            const userDoc = await transaction.get(userRef);
+
+            if (!eventDoc.exists() || !userDoc.exists()) {
+                throw new Error("Event or User not found!");
+            }
+
+            const eventData = eventDoc.data() as Event;
+            const newFeedback = { userId, rating, comment, submittedAt: new Date().toISOString() };
+            const updatedFeedback = [...(eventData.feedback || []), newFeedback];
+
+            transaction.update(eventRef, { feedback: updatedFeedback });
+
+            // Award user points for giving feedback
+            const currentUserPoints = userDoc.data().points || 0;
+            transaction.update(userRef, { points: currentUserPoints + 2 });
+
+            // Award bonus to organizer if average rating is good
+            const totalRatings = updatedFeedback.reduce((acc, f) => acc + f.rating, 0);
+            const avgRating = totalRatings / updatedFeedback.length;
+            if (updatedFeedback.length >= 5 && avgRating >= 4.5) {
+                if (eventData.organizerType === 'club') {
+                    const clubRef = doc(db, 'clubs', eventData.organizerId);
+                    const clubDoc = await transaction.get(clubRef);
+                    const currentClubPoints = clubDoc.data()?.points || 0;
+                    transaction.update(clubRef, { points: currentClubPoints + 2 });
+                } else {
+                    const organizerRef = doc(db, 'users', eventData.organizerId);
+                    const organizerDoc = await transaction.get(organizerRef);
+                    const currentOrgPoints = organizerDoc.data()?.points || 0;
+                    transaction.update(organizerRef, { points: currentOrgPoints + 2 });
+                }
+            }
+        });
+        toast.success("Thank you for your feedback!");
+        set({ isLoading: false });
+        return true;
+    } catch (error) {
+        console.error("Feedback submission error:", error);
+        toast.error("Failed to submit feedback.");
+        set({ isLoading: false });
+        return false;
+    }
+},
 }));

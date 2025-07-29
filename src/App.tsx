@@ -31,6 +31,7 @@ import EventMarks from './pages/EventMarks';
 import MarksDashboard from './pages/MarksDashboard';
 import EventAttendance from './pages/EventAttendance';
 import AttendanceDashboard from './pages/AttendanceDashboard';
+import Leaderboard from './pages/Leaderboard'; // Import the new Leaderboard component
 
 // Guards
 import AuthGuard from './guards/AuthGuard';
@@ -140,6 +141,7 @@ function App() {
           <Route path="/marks" element={<MarksDashboard />} />
           <Route path="/events/:eventId/attendance" element={<EventAttendance />} />
           <Route path="/attendance" element={<AttendanceDashboard />} />
+          <Route path="/leaderboard" element={<Leaderboard />} /> {/* Add new route */}
         </Route>
 
         {/* Not Found */}
