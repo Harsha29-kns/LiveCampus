@@ -7,17 +7,18 @@ import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { Event } from '../types';
 import toast from 'react-hot-toast';
-import LoadingSpinner from '../components/ui/LoadingSpinner'; // Import the spinner component
+import { format, parseISO } from 'date-fns';
+import LoadingSpinner from '../components/ui/LoadingSpinner';
 
 const CreateEvent: React.FC = () => {
     const { id } = useParams<{ id?: string }>();
     const isEditMode = Boolean(id);
     const navigate = useNavigate();
-    const { createEvent, getEventById, updateEvent, fetchEvents } = useEventStore();
+    const { createEvent, getEventById, updateEvent, events, fetchEvents } = useEventStore();
     const { user } = useAuthStore();
 
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [isLoading, setIsLoading] = useState(isEditMode); // Only load if in edit mode
+    const [isLoading, setIsLoading] = useState(true); // Always start in loading state
 
     const [formData, setFormData] = useState({
         title: '',
@@ -37,18 +38,22 @@ const CreateEvent: React.FC = () => {
     useEffect(() => {
         const loadEventData = async () => {
             if (isEditMode && id) {
-                // Ensure events are fetched if not already in the store
-                await fetchEvents(); 
+                // Ensure events are available in the store
+                if (events.length === 0) {
+                    await fetchEvents();
+                }
                 const event = getEventById(id);
+
                 if (event) {
                     setFormData({
                         title: event.title || '',
                         description: event.description || '',
                         location: event.location || '',
-                        startDate: event.startDate ? new Date(event.startDate).toISOString().slice(0, 10) : '',
-                        startTime: event.startDate ? new Date(event.startDate).toISOString().slice(11, 16) : '',
-                        endDate: event.endDate ? new Date(event.endDate).toISOString().slice(0, 10) : '',
-                        endTime: event.endDate ? new Date(event.endDate).toISOString().slice(11, 16) : '',
+                        // CORRECTED: Use `format` for reliable date/time conversion
+                        startDate: event.startDate ? format(parseISO(event.startDate), 'yyyy-MM-dd') : '',
+                        startTime: event.startDate ? format(parseISO(event.startDate), 'HH:mm') : '',
+                        endDate: event.endDate ? format(parseISO(event.endDate), 'yyyy-MM-dd') : '',
+                        endTime: event.endDate ? format(parseISO(event.endDate), 'HH:mm') : '',
                         capacity: event.capacity ? String(event.capacity) : '',
                         image: event.image || '',
                         tags: event.tags ? event.tags.join(', ') : '',
@@ -57,12 +62,12 @@ const CreateEvent: React.FC = () => {
                     toast.error("Event not found for editing.");
                     navigate('/events');
                 }
-                setIsLoading(false); // Stop loading after data is set
             }
+            setIsLoading(false); // Stop loading after data is set or if not in edit mode
         };
 
         loadEventData();
-    }, [isEditMode, id, getEventById, navigate, fetchEvents]);
+    }, [isEditMode, id, getEventById, navigate, events, fetchEvents]);
 
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -82,8 +87,8 @@ const CreateEvent: React.FC = () => {
             setImageFile(e.target.files[0]);
         }
     };
-    
-    
+
+
     const uploadToCloudinary = async (file: File) => {
         const formData = new FormData();
         formData.append('file', file);
@@ -108,7 +113,7 @@ const CreateEvent: React.FC = () => {
         if (!formData.startTime) newErrors.startTime = 'Start time is required';
         if (!formData.endDate) newErrors.endDate = 'End date is required';
         if (!formData.endTime) newErrors.endTime = 'End time is required';
-        
+
         const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
         const endDateTime = new Date(`${formData.endDate}T${formData.endTime}`);
         if (startDateTime >= endDateTime) {
@@ -128,10 +133,11 @@ const CreateEvent: React.FC = () => {
             return;
         }
 
-        
+
         setIsSubmitting(true);
 
         try {
+            // CORRECTED: Preserve existing image URL if no new file is selected
             let imageUrl = formData.image || '';
             if (imageFile) {
                 toast.loading('Uploading image...');
@@ -143,28 +149,41 @@ const CreateEvent: React.FC = () => {
             const endDateTime = new Date(`${formData.endDate}T${formData.endTime}`);
             const tags = formData.tags.split(',').map(tag => tag.trim()).filter(Boolean);
 
-            const organizerId = user.role === 'club' ? user.clubId : user.id;
-
-            const eventData: Partial<Event> = {
-                title: formData.title,
-                description: formData.description,
-                location: formData.location,
-                startDate: startDateTime.toISOString(),
-                endDate: endDateTime.toISOString(),
-                organizerId,
-                organizerName: user.name,
-                organizerType: user.role,
-                createdBy: user.id,
-                capacity: formData.capacity ? parseInt(formData.capacity, 10) : undefined,
-                image: imageUrl || undefined,
-                tags,
-                clubId: user.role === 'club' ? user.clubId : undefined,
-            };
-
             if (isEditMode && id) {
+                const originalEvent = getEventById(id);
+                const eventData: Partial<Event> = {
+                    title: formData.title,
+                    description: formData.description,
+                    location: formData.location,
+                    startDate: startDateTime.toISOString(),
+                    endDate: endDateTime.toISOString(),
+                    capacity: formData.capacity ? parseInt(formData.capacity, 10) : undefined,
+                    image: imageUrl || undefined,
+                    tags,
+                    // CORRECTED: Do not change organizer info on edit
+                    organizerId: originalEvent?.organizerId,
+                    organizerName: originalEvent?.organizerName,
+                    organizerType: originalEvent?.organizerType,
+                    createdBy: originalEvent?.createdBy,
+                };
                 await updateEvent(id, eventData);
                 toast.success('Event updated successfully!');
             } else {
+                 const eventData: Partial<Event> = {
+                    title: formData.title,
+                    description: formData.description,
+                    location: formData.location,
+                    startDate: startDateTime.toISOString(),
+                    endDate: endDateTime.toISOString(),
+                    organizerId: user.role === 'club' ? user.clubId : user.id,
+                    organizerName: user.name,
+                    organizerType: user.role,
+                    createdBy: user.id,
+                    capacity: formData.capacity ? parseInt(formData.capacity, 10) : undefined,
+                    image: imageUrl || undefined,
+                    tags,
+                    clubId: user.role === 'club' ? user.clubId : undefined,
+                };
                 await createEvent(eventData);
             }
             navigate('/events');
@@ -177,7 +196,6 @@ const CreateEvent: React.FC = () => {
         }
     };
 
-    // Show a loading spinner if the component is fetching data for an existing event.
     if (isLoading) {
         return (
             <div className="flex items-center justify-center min-h-[60vh]">

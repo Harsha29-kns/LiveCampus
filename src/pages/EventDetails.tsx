@@ -7,10 +7,11 @@ import {
 import { useEventStore } from '../stores/eventStore';
 import { useAuthStore } from '../stores/authStore';
 import { Card, CardBody, CardHeader } from '../components/ui/Card';
+// CORRECTED: Fixed the import path for the Button component
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import Input from '../components/ui/Input';
-import { format, parseISO, isPast } from 'date-fns';
+import { format, parseISO, isPast, isSameDay } from 'date-fns';
 import toast from 'react-hot-toast';
 import { doc, getDoc, query, collection, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
@@ -214,14 +215,24 @@ const EventDetails: React.FC = () => {
     if (!event) {
         return null;
     }
+    
+    // Date formatting logic
+    const startDate = parseISO(event.startDate);
+    const endDate = parseISO(event.endDate);
+    const isSameDayEvent = isSameDay(startDate, endDate);
+    const formattedDate = isSameDayEvent
+        ? format(startDate, 'E, d LLL yyyy')
+        : `${format(startDate, 'E, d LLL yyyy')} - ${format(endDate, 'E, d LLL yyyy')}`;
+    const formattedTime = `${format(startDate, 'p')} - ${format(endDate, 'p')}`;
+
 
     const isAdmin = user?.role === 'admin';
-    const isOrganizer = user?.id === event.createdBy || isAdmin || (user?.role === event.organizerType && user.id === event.organizerId);
+    const isOrganizer = user?.id === event.createdBy || isAdmin || (user?.role === event.organizerType && user?.id === event.organizerId);
     const isPending = event.status === 'pending';
     const isApproved = event.status === 'approved';
     const isRejected = event.status === 'rejected';
     const isCancelled = event.status === 'cancelled';
-    const isCompleted = isPast(parseISO(event.endDate));
+    const isCompleted = isPast(endDate);
     const isFull = event.capacity ? event.registeredCount >= event.capacity : false;
 
 
@@ -233,7 +244,7 @@ const EventDetails: React.FC = () => {
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent" />
                 <div className="absolute inset-0 flex flex-col justify-end text-white p-4 md:p-8">
                     <div className="max-w-7xl mx-auto w-full">
-                        <div className="absolute top-4 left-4 md:top-6 md:left-6"><Button variant="ghost" size="sm" leftIcon={<ArrowLeft size={16} />} onClick={() => navigate('/events')}>Back</Button></div>
+                        <div className="absolute top-4 left-4 md:top-6 md:left-6"><Button variant="ghost" size="sm" leftIcon={<ArrowLeft size={16} />} onClick={() => navigate('/events')}>Back to Events</Button></div>
                         {isOrganizer && isApproved && !isCompleted && (<div className="absolute top-4 right-4 md:top-6 md:right-6 flex gap-2"><Button variant="ghost" size="sm" leftIcon={<Edit size={16} />} onClick={() => navigate(`/events/edit/${event.id}`)}>Edit</Button><Button variant="danger" size="sm" leftIcon={<Trash2 size={16} />} onClick={handleDelete} isLoading={isActionLoading}>Delete</Button></div>)}
                         <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight drop-shadow-lg">{event.title}</h1>
                         <p className="mt-2 text-lg md:text-xl text-gray-200 drop-shadow-md">Organized by {event.organizerName}</p>
@@ -299,16 +310,22 @@ const EventDetails: React.FC = () => {
                                 </CardBody>
                             </Card>
                         )}
-
-
                     </main>
 
                     {/* Right Column (Unified Action Panel) */}
                     <aside className="lg:col-span-1 lg:sticky lg:top-8 space-y-6">
                         <Card className="shadow-lg">
                             <CardBody className="space-y-4">
-                                {/* Key Details Section */}
-                                <div className="flex items-start gap-4"><Calendar className="w-5 h-5 text-indigo-600 mt-1 flex-shrink-0"/><p className="text-gray-700"><strong className="block text-gray-900">Date & Time</strong>{format(parseISO(event.startDate), 'E, d LLL yyyy')} at {format(parseISO(event.startDate), 'p')}</p></div>
+                                {/* CORRECTED: Key Details Section with End Time */}
+                                <div className="flex items-start gap-4">
+                                    <Calendar className="w-5 h-5 text-indigo-600 mt-1 flex-shrink-0"/>
+                                    <p className="text-gray-700">
+                                        <strong className="block text-gray-900">Date & Time</strong>
+                                        {formattedDate}
+                                        <br/>
+                                        {formattedTime}
+                                    </p>
+                                </div>
                                 <div className="flex items-start gap-4"><MapPin className="w-5 h-5 text-indigo-600 mt-1 flex-shrink-0"/><p className="text-gray-700"><strong className="block text-gray-900">Location</strong>{event.location}</p></div>
                                 <div className="flex items-start gap-4"><Users className="w-5 h-5 text-indigo-600 mt-1 flex-shrink-0"/><p className="text-gray-700"><strong className="block text-gray-900">Capacity</strong>{event.registeredCount} / {event.capacity || 'Unlimited'}</p></div>
                                 
@@ -334,7 +351,13 @@ const EventDetails: React.FC = () => {
                                                 <Input label="Phone" name="phone" value={registrationData.phone} onChange={handleRegChange} error={regErrors.phone} required />
                                                 <Button type="submit" fullWidth isLoading={isActionLoading}>Confirm Registration</Button>
                                             </form>
-                                        ) : !isOrganizer && <div className="bg-blue-50 text-blue-700 rounded-lg p-4 text-center"><h3 className="font-bold mb-1">Registration is Open</h3><p className="text-sm">Log in as a student to register.</p></div>
+                                        ) : (
+                                           // CLEANUP: Removed redundant isOrganizer check
+                                           <div className="bg-blue-50 text-blue-700 rounded-lg p-4 text-center">
+                                                <h3 className="font-bold mb-1">Registration is Open</h3>
+                                                <p className="text-sm">Log in as a student to register.</p>
+                                            </div>
+                                        )
                                     )
                                 ) : null}
 

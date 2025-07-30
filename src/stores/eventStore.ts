@@ -5,6 +5,15 @@ import { Event, User } from '../types';
 import toast from 'react-hot-toast';
 import { useAuthStore } from './authStore';
 
+// Define the detailed feedback type
+interface DetailedFeedback {
+    overallExperience: number;
+    eventOrganization: number;
+    activitiesEnjoyment: number;
+    recommendationLikelihood: number;
+    comment?: string;
+}
+
 interface EventState {
   events: Event[];
   isLoading: boolean;
@@ -18,7 +27,7 @@ interface EventState {
   registerForEvent: (eventId: string, userId: string, registrationData?: Partial<Event>) => Promise<boolean>;
   cancelRegistration: (eventId: string, userId: string) => Promise<boolean>;
   fetchRegisteredEvents: (userId: string) => Promise<Event[]>;
-  submitFeedback: (eventId: string, userId: string, rating: number, comment: string) => Promise<boolean>;
+  submitFeedback: (eventId: string, userId: string, feedback: DetailedFeedback) => Promise<boolean>;
 }
 
 export const useEventStore = create<EventState>((set, get) => ({
@@ -163,12 +172,21 @@ export const useEventStore = create<EventState>((set, get) => ({
   updateEvent: async (id, eventData) => {
     set({ isLoading: true });
     try {
-      await updateDoc(doc(db, 'events', id), {
-        ...eventData,
-        updatedAt: new Date().toISOString(),
-      });
+      // CORRECTED: Ensure only editable fields are passed to updateDoc
+      const dataToUpdate = {
+          ...eventData,
+          updatedAt: new Date().toISOString(),
+      };
+      // Prevent overwriting original creator info
+      delete dataToUpdate.organizerId;
+      delete dataToUpdate.organizerName;
+      delete dataToUpdate.organizerType;
+      delete dataToUpdate.createdBy;
+
+      await updateDoc(doc(db, 'events', id), dataToUpdate);
       toast.success('Event updated!');
       set({ isLoading: false });
+      // The store will auto-update via the onSnapshot listener
       return get().getEventById(id);
     } catch (error) {
       toast.error('Failed to update event');
@@ -222,7 +240,6 @@ export const useEventStore = create<EventState>((set, get) => ({
                 throw new Error("User or Event not found!");
             }
 
-            // Add registration
             const regRef = doc(collection(db, 'eventRegistrations'));
             transaction.set(regRef, {
                 eventId,
@@ -232,11 +249,9 @@ export const useEventStore = create<EventState>((set, get) => ({
                 ...(registrationData || {})
             });
 
-            // Update event registration count
             const currentRegCount = eventDoc.data().registeredCount || 0;
             transaction.update(eventRef, { registeredCount: currentRegCount + 1 });
 
-            // Gamification: Update user points for registering
             const currentPoints = userDoc.data().points || 0;
             transaction.update(userRef, { points: currentPoints + 1 });
         });
@@ -300,7 +315,7 @@ export const useEventStore = create<EventState>((set, get) => ({
     }
   },
 
-  submitFeedback: async (eventId, userId, rating, comment) => {
+  submitFeedback: async (eventId, userId, feedback) => {
     set({ isLoading: true });
     try {
         await runTransaction(db, async (transaction) => {
@@ -314,7 +329,7 @@ export const useEventStore = create<EventState>((set, get) => ({
             }
 
             const eventData = eventDoc.data() as Event;
-            const newFeedback = { userId, rating, comment, submittedAt: new Date().toISOString() };
+            const newFeedback = { userId, ...feedback, submittedAt: new Date().toISOString() };
             const updatedFeedback = [...(eventData.feedback || []), newFeedback];
 
             transaction.update(eventRef, { feedback: updatedFeedback });
@@ -324,7 +339,7 @@ export const useEventStore = create<EventState>((set, get) => ({
             transaction.update(userRef, { points: currentUserPoints + 2 });
 
             // Award bonus to organizer if average rating is good
-            const totalRatings = updatedFeedback.reduce((acc, f) => acc + f.rating, 0);
+            const totalRatings = updatedFeedback.reduce((acc, f) => acc + f.overallExperience, 0);
             const avgRating = totalRatings / updatedFeedback.length;
             if (updatedFeedback.length >= 5 && avgRating >= 4.5) {
                 if (eventData.organizerType === 'club') {

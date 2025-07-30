@@ -10,16 +10,18 @@ import Badge from '../components/ui/Badge';
 import { format, parseISO } from 'date-fns';
 import toast from 'react-hot-toast';
 import { Event } from '../types';
-import LoadingSpinner from '../components/ui/LoadingSpinner'; // Import the spinner component
+import LoadingSpinner from '../components/ui/LoadingSpinner';
 
 const ClubDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getClubById, fetchClubs } = useClubStore();
+  const { getClubById, fetchClubs, joinClub, leaveClub } = useClubStore();
   const { events, fetchEvents } = useEventStore();
   const { user } = useAuthStore();
   const [club, setClub] = useState<any>(null);
   const [clubEvents, setClubEvents] = useState<Event[]>([]);
+  const [isMember, setIsMember] = useState(false);
+  const [isActionLoading, setIsActionLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   // Effect for fetching initial data
@@ -27,9 +29,11 @@ const ClubDetails: React.FC = () => {
     const loadData = async () => {
       setIsLoading(true);
       try {
+        // Fetch clubs first to identify the current club.
         let currentClub = getClubById(id || '');
         if (!currentClub) {
           await fetchClubs();
+          // After fetching, try to get the club again from the updated store
           currentClub = getClubById(id || '');
         }
 
@@ -38,9 +42,10 @@ const ClubDetails: React.FC = () => {
         } else {
           toast.error('Club not found');
           navigate('/clubs');
-          return;
+          return; // Stop execution if club not found
         }
 
+        // Separately ensure the events are loaded into the store.
         if (events.length === 0) {
           await fetchEvents();
         }
@@ -53,7 +58,8 @@ const ClubDetails: React.FC = () => {
     loadData();
   }, [id, navigate, fetchClubs, getClubById, fetchEvents, events.length]);
 
-  // Effect for filtering events once data is loaded
+  // This second effect will run *after* the data is loaded and whenever
+  // the main `events` list from the store changes. This is the key fix.
   useEffect(() => {
     if (club && events.length > 0) {
       const now = new Date();
@@ -61,11 +67,44 @@ const ClubDetails: React.FC = () => {
         (event) =>
           event.organizerId === club.id &&
           event.organizerType === 'club' &&
-          parseISO(event.endDate) >= now
+          parseISO(event.endDate) >= now // Correctly filters out past events
       );
       setClubEvents(upcomingEvents);
     }
-  }, [club, events]);
+  }, [club, events]); // Re-runs when club or events are updated
+
+  // Simulate membership check (replace with real logic)
+  useEffect(() => {
+    if (club) {
+      setIsMember(Math.random() > 0.5);
+    }
+  }, [club]);
+
+  const handleJoin = async () => {
+    if (!id || !user) return;
+    setIsActionLoading(true);
+    const success = await joinClub(id, user.id);
+    if (success) {
+      setIsMember(true);
+      toast.success(`You've joined ${club.name}`);
+      const updatedClub = getClubById(id);
+      if (updatedClub) setClub(updatedClub);
+    }
+    setIsActionLoading(false);
+  };
+
+  const handleLeave = async () => {
+    if (!id || !user) return;
+    setIsActionLoading(true);
+    const success = await leaveClub(id, user.id);
+    if (success) {
+      setIsMember(false);
+      toast.success(`You've left ${club.name}`);
+      const updatedClub = getClubById(id);
+      if (updatedClub) setClub(updatedClub);
+    }
+    setIsActionLoading(false);
+  };
 
   const handleShare = () => {
     if (navigator.share) {
@@ -105,6 +144,7 @@ const ClubDetails: React.FC = () => {
   const isPresident = user?.id === club.presidentId;
   const isFacultyAdvisor = user?.id === club.facultyAdvisorId;
   const canEdit = isAdmin || isPresident || isFacultyAdvisor;
+  const isStudent = user?.role === 'student';
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -140,8 +180,7 @@ const ClubDetails: React.FC = () => {
                             <div>
                                 <h1 className="text-2xl font-bold text-neutral-900 mb-1">{club.name}</h1>
                                 <p className="text-neutral-500 flex items-center">
-                                    <Users size={16} className="mr-1" />
-                                    {club.memberCount} members
+
                                 </p>
                                 {club.tags && club.tags.length > 0 && (
                                     <div className="flex flex-wrap gap-2 mt-2">
@@ -286,7 +325,42 @@ const ClubDetails: React.FC = () => {
                         </div>
                     </CardBody>
                 </Card>
-
+                {isStudent && (
+                    <Card>
+                        <CardBody>
+                            {isMember ? (
+                                <>
+                                    <div className="bg-green-50 text-green-800 rounded-md p-3 mb-4 flex items-center">
+                                        <Users className="w-5 h-5 mr-2" />
+                                        <span>You're a member of this club!</span>
+                                    </div>
+                                    <Button
+                                        variant="outline"
+                                        fullWidth
+                                        onClick={handleLeave}
+                                        isLoading={isActionLoading}
+                                    >
+                                        Leave Club
+                                    </Button>
+                                </>
+                            ) : (
+                                <>
+                                    <h3 className="text-lg font-medium text-neutral-900 mb-2">Join this Club</h3>
+                                    <p className="text-neutral-700 mb-4">
+                                        Become a member to participate in club activities and events.
+                                    </p>
+                                    <Button
+                                        fullWidth
+                                        onClick={handleJoin}
+                                        isLoading={isActionLoading}
+                                    >
+                                        Join Now
+                                    </Button>
+                                </>
+                            )}
+                        </CardBody>
+                    </Card>
+                )}
                 {/* Contact Button */}
                 <Button
                     variant="outline"
