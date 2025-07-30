@@ -1,13 +1,13 @@
+// src/pages/AdminUserManagement.tsx
 import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { useClubStore } from '../stores/clubStore';
 import Button from '../components/ui/Button';
 import { Card, CardBody } from '../components/ui/Card';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db } from '../firebaseConfig';
 import { doc, updateDoc, collection, getDocs, deleteDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
-import LoadingSpinner from '../components/ui/LoadingSpinner'; // Import the spinner component
+import LoadingSpinner from '../components/ui/LoadingSpinner';
 
 const AdminUserManagement: React.FC = () => {
     const { fetchUsers, deleteUser, addUser } = useAuthStore();
@@ -20,19 +20,31 @@ const AdminUserManagement: React.FC = () => {
     const [clubImageFile, setClubImageFile] = useState<File | null>(null);
     const [clubImageUrl, setClubImageUrl] = useState('');
     const [isUploading, setIsUploading] = useState(false);
-    const [isLoading, setIsLoading] = useState(true); // State to manage loading
+    const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
         const loadData = async () => {
-            setIsLoading(true); // Set loading to true before fetching
+            setIsLoading(true);
             await Promise.all([
                 fetchUsers().then(setUsers),
                 fetchClubs()
             ]);
-            setIsLoading(false); // Set loading to false after all data is fetched
+            setIsLoading(false);
         };
         loadData();
     }, [fetchUsers, fetchClubs]);
+    
+    const uploadToCloudinary = async (file: File) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('upload_preset', 'club-images'); // Make sure this preset exists in your Cloudinary account
+        const res = await fetch('https://api.cloudinary.com/v1_1/ductmfmke/image/upload', { // Replace with your cloud name
+            method: 'POST',
+            body: formData,
+        });
+        const data = await res.json();
+        return data.secure_url;
+    };
 
     const handleAddUser = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -46,22 +58,32 @@ const AdminUserManagement: React.FC = () => {
             setClubImageFile(e.target.files[0]);
         }
     };
-    
-    // This function requires a definition for uploadToCloudinary to work
+
     const handleClubImageUpdate = async (clubId: string) => {
-        // setIsUploading(true);
-        // let logoUrl = clubImageUrl;
-        // if (clubImageFile) {
-        //     logoUrl = await uploadToCloudinary(clubImageFile);
-        // }
-        // if (logoUrl) {
-        //     await updateDoc(doc(db, 'clubs', clubId), { logo: logoUrl });
-        //     setEditingClubId(null);
-        //     setClubImageFile(null);
-        //     setClubImageUrl('');
-        //     fetchClubs();
-        // }
-        // setIsUploading(false);
+        if (!clubImageFile && !clubImageUrl) {
+            toast.error("Please select an image file or provide an image URL.");
+            return;
+        }
+        setIsUploading(true);
+        try {
+            let logoUrl = clubImageUrl;
+            if (clubImageFile) {
+                logoUrl = await uploadToCloudinary(clubImageFile);
+            }
+            if (logoUrl) {
+                await updateDoc(doc(db, 'clubs', clubId), { logo: logoUrl });
+                toast.success("Club image updated!");
+                setEditingClubId(null);
+                setClubImageFile(null);
+                setClubImageUrl('');
+                fetchClubs();
+            }
+        } catch (error) {
+            toast.error("Failed to update club image.");
+            console.error(error);
+        } finally {
+            setIsUploading(false);
+        }
     };
 
     const students = users.filter(u => u.role === 'student' && u.status === 'approved');
@@ -106,7 +128,6 @@ const AdminUserManagement: React.FC = () => {
         }
     };
     
-    // Conditional rendering based on the loading state
     if (isLoading) {
         return (
             <div className="flex items-center justify-center min-h-[60vh]">

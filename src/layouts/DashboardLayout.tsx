@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, Fragment } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Calendar, User, LogOut, Bell, Menu, X, Users, Home, Settings, BarChart2, QrCode, Trophy, MessageSquare } from 'lucide-react';
+import { Calendar, User, LogOut, Bell, Menu, X, Users, Home, Settings, BarChart2, QrCode, Trophy, MessageSquare, Building } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useNotificationStore } from '../stores/notificationStore';
 
@@ -50,14 +50,19 @@ const DashboardLayout: React.FC = () => {
         setNotificationsOpen(false); 
     };
     
+    // **FIX START**: Dynamically set the profile link for club users
+    const profileLink = user?.role === 'club' ? '/club-profile' : '/profile';
+    const profileIcon = user?.role === 'club' ? <Building size={22} /> : <User size={22} />;
+    const profileLabel = user?.role === 'club' ? 'Club Profile' : 'My Profile';
+
     const menuItems = [
         { to: '/', icon: <Home size={22} />, label: 'Dashboard' },
         { to: '/events', icon: <Calendar size={22} />, label: 'Events' },
         { to: '/clubs', icon: <Users size={22} />, label: 'Clubs' },
-        { to: '/profile', icon: <User size={22} />, label: 'Profile' },
+        { to: profileLink, icon: profileIcon, label: profileLabel },
         { to: '/leaderboard', icon: <Trophy size={22} />, label: 'Leaderboard' },
-       
     ];
+    // **FIX END**
 
     if (user?.role === 'admin') {
         menuItems.push({ to: '/admin/users', icon: <Settings size={22} />, label: 'Admin Panel' });
@@ -68,12 +73,11 @@ const DashboardLayout: React.FC = () => {
         menuItems.push({ to: '/marks', icon: <BarChart2 size={22} />, label: 'Marks' });
     }
 
-    // Reusable NavLinks component for both mobile and desktop sidebars
     const NavLinks = ({ inMobileSidebar = false }) => (
         <nav className={`flex flex-col ${inMobileSidebar ? 'space-y-2 p-4' : 'px-2 pt-4 space-y-1'}`}>
             {menuItems.map((item) => (
                 <NavLink
-                    key={item.to}
+                    key={item.label}
                     to={item.to}
                     end={item.to === '/'}
                     className={({ isActive }) =>
@@ -91,7 +95,6 @@ const DashboardLayout: React.FC = () => {
         </nav>
     );
     
-    // Reusable User Profile section
     const UserProfileSection = ({ inMobileSidebar = false }) => (
         <div className={`mt-auto ${inMobileSidebar ? 'p-4 border-t border-slate-700' : 'p-2'}`}>
             <div className="group flex items-center p-3 rounded-lg hover:bg-slate-700 transition-all duration-200">
@@ -135,13 +138,10 @@ const DashboardLayout: React.FC = () => {
             {/* --- Mobile Sidebar (with backdrop) --- */}
             {sidebarOpen && (
                 <div className="lg:hidden fixed inset-0 flex z-40">
-                    {/* Backdrop */}
                     <div onClick={() => setSidebarOpen(false)} className="fixed inset-0 bg-gray-600 bg-opacity-75" aria-hidden="true" />
-                    
-                    {/* Sidebar panel */}
                     <div className="relative flex-1 flex flex-col max-w-xs w-full bg-slate-800">
                         <div className="absolute top-0 right-0 -mr-12 pt-2">
-                            <button type="button" className="ml-1 flex items-center justify-center h-10 w-10 rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white" onClick={() => setSidebarOpen(false)}>
+                            <button type="button" className="ml-1 flex items-center justify-center h-10 w-10 rounded-full" onClick={() => setSidebarOpen(false)}>
                                 <X className="h-6 w-6 text-white" />
                             </button>
                         </div>
@@ -164,39 +164,33 @@ const DashboardLayout: React.FC = () => {
                 <header className="relative bg-white shadow-sm z-10">
                     <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
                         <div className="flex justify-between items-center h-20">
-                            {/* Mobile Menu Button */}
                             <button className="lg:hidden text-gray-500" onClick={() => setSidebarOpen(true)}>
                                 <Menu size={28} />
                             </button>
-                            
-                            {/* Page Title */}
                             <h1 className="text-xl font-semibold text-gray-800 hidden md:block">
                                 {menuItems.find(item => location.pathname.startsWith(item.to) && (item.to !== '/' || location.pathname === '/'))?.label || 'Dashboard'}
                             </h1>
-                            
-                            {/* Header Actions */}
                             <div className="flex items-center space-x-4">
-                               {/* Notifications Dropdown */}
                                <div className="relative" ref={notificationsRef}>
                                     <button 
                                         onClick={() => setNotificationsOpen(!notificationsOpen)}
-                                        className="relative p-2 rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                                        className="relative p-2 rounded-full text-gray-500 hover:bg-gray-100"
                                     >
                                         <Bell size={22} />
                                         {unreadCount > 0 && <span className="absolute top-1 right-1 block h-2.5 w-2.5 rounded-full bg-red-500" />}
                                     </button>
 
                                     {notificationsOpen && (
-                                        <div className="origin-top-right absolute z-10 right-0 mt-2 w-80 sm:w-96 rounded-lg shadow-xl bg-white ring-1 ring-black ring-opacity-5">
+                                        <div className="origin-top-right absolute z-10 right-0 mt-2 w-80 rounded-lg shadow-xl bg-white">
                                             <div className="flex flex-col max-h-[80vh]">
-                                                <div className="p-4 border-b border-gray-200">
-                                                    <h3 className="font-semibold text-gray-800">Notifications</h3>
+                                                <div className="p-4 border-b">
+                                                    <h3 className="font-semibold">Notifications</h3>
                                                 </div>
                                                 <div className="overflow-y-auto">
                                                     {notifications.length > 0 ? (
                                                         notifications.map((n) => (
-                                                            <div key={n.id} onClick={() => handleNotificationClick(n.id)} className={`p-4 block w-full text-left hover:bg-gray-50 cursor-pointer ${!n.read ? 'bg-indigo-50' : ''}`}>
-                                                                <p className="font-medium text-sm text-gray-900">{n.title}</p>
+                                                            <div key={n.id} onClick={() => handleNotificationClick(n.id)} className={`p-4 hover:bg-gray-50 cursor-pointer ${!n.read ? 'bg-indigo-50' : ''}`}>
+                                                                <p className="font-medium">{n.title}</p>
                                                                 <p className="text-sm text-gray-500">{n.message}</p>
                                                                 <p className="text-xs text-gray-400 mt-1">{new Date(n.createdAt).toLocaleString()}</p>
                                                             </div>
@@ -226,4 +220,4 @@ const DashboardLayout: React.FC = () => {
     );
 };
 
-export default DashboardLayout;
+export default DashboardLayout; 
