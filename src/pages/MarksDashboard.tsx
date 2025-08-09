@@ -17,7 +17,9 @@ const MarksDashboard: React.FC = () => {
 
   useEffect(() => {
     if (user?.role === 'club') {
-      const myClubEvents = events.filter(event => event.clubId === user.clubId);
+      const myClubEvents = events
+        .filter(event => event.clubId === user.clubId && event.status !== 'rejected') // Filter out rejected events
+        .sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime()); // Sort by newest first
       setMyEvents(myClubEvents);
     }
   }, [events, user]);

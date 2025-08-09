@@ -15,8 +15,10 @@ interface ClubState {
   deleteClub: (id: string) => Promise<boolean>;
   joinClub: (clubId: string, userId: string) => Promise<boolean>;
   leaveClub: (clubId: string, userId: string) => Promise<boolean>;
-  fetchUsers: () => Promise<void>;
-  deleteUser: (userId: string) => Promise<void>;
+  // --- NEW FUNCTION SIGNATURE ---
+  createClubProfileForUser: (clubData: Omit<Club, 'id' | 'createdAt' | 'updatedAt' | 'memberCount' | 'points'>) => Promise<boolean>;
+  fetchUsers: () => Promise<void>; // Kept existing signatures
+  deleteUser: (userId: string) => Promise<void>; // Kept existing signatures
 }
 
 export const useClubStore = create<ClubState>((set, get) => ({
@@ -40,6 +42,44 @@ export const useClubStore = create<ClubState>((set, get) => ({
 
   getClubById: (id) => get().clubs.find(club => club.id === id),
 
+  // --- NEW FUNCTION IMPLEMENTATION ---
+  createClubProfileForUser: async (clubData) => {
+    const { user, setUser } = useAuthStore.getState();
+    if (!user || user.role !== 'club') {
+        toast.error("You must be logged in as a club to create a profile.");
+        return false;
+    }
+    set({ isLoading: true });
+    try {
+        const docRef = await addDoc(collection(db, 'clubs'), {
+            ...clubData,
+            memberCount: 1, // Start with the creator as the first member
+            points: 0,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+        });
+        
+        // Link the new club ID to the user's profile
+        await updateDoc(doc(db, 'users', user.id), { clubId: docRef.id });
+        
+        // Update the auth store with the new club info
+        const newClubData = { id: docRef.id, ...clubData };
+        const updatedUser = { ...user, clubId: docRef.id, club: newClubData };
+        setUser(updatedUser);
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        
+        toast.success('Club profile created successfully!');
+        set({ isLoading: false });
+        get().fetchClubs(); // Refresh the clubs list
+        return true;
+    } catch (error) {
+        console.error("Error creating club profile:", error);
+        toast.error("Failed to create club profile.");
+        set({ isLoading: false });
+        return false;
+    }
+  },
+
   createClub: async (clubData) => {
     set({ isLoading: true });
     try {
@@ -56,12 +96,11 @@ export const useClubStore = create<ClubState>((set, get) => ({
         updatedAt: new Date().toISOString(),
       });
 
-      // Update the user's profile with clubId (assuming user is president)
       const { user } = useAuthStore.getState();
       if (user) {
         await updateDoc(doc(db, 'users', user.id), {
           clubId: docRef.id,
-          clubRole: 'president', // or whatever role
+          clubRole: 'president',
         });
       }
 
@@ -109,7 +148,6 @@ export const useClubStore = create<ClubState>((set, get) => ({
   joinClub: async (clubId, userId) => {
     set({ isLoading: true });
     try {
-      // You can also create a "clubMembers" collection for more advanced logic
       const club = get().getClubById(clubId);
       if (club) {
         await updateDoc(doc(db, 'clubs', clubId), {
@@ -150,23 +188,10 @@ export const useClubStore = create<ClubState>((set, get) => ({
   },
 
   fetchUsers: async () => {
-    // Fetch all users from Firestore (requires admin privileges)
-    // Implement this logic
+    // This logic should be in authStore, but keeping the function signature for compatibility
   },
 
   deleteUser: async (userId: string) => {
-    // Delete user from Firestore (requires admin privileges)
-    // Implement this logic
+    // This logic should be in authStore, but keeping the function signature for compatibility
   },
 }));
-
-// Example (in your club creation form)
-// await createClub({
-//   name,
-//   description,
-//   president,
-//   vicePresident,
-//   facultyAdvisor,
-//   phoneNo,
-//   // ...other fields
-// });

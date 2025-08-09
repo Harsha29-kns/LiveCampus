@@ -31,7 +31,8 @@ import EventMarks from './pages/EventMarks';
 import MarksDashboard from './pages/MarksDashboard';
 import EventAttendance from './pages/EventAttendance';
 import AttendanceDashboard from './pages/AttendanceDashboard';
-import Leaderboard from './pages/Leaderboard'; // Import the new Leaderboard component
+import Leaderboard from './pages/Leaderboard';
+import VerifyPayments from './pages/VerifyPayments'; // Import the new component
 
 // Guards
 import AuthGuard from './guards/AuthGuard';
@@ -140,8 +141,19 @@ function App() {
           <Route path="/events/:eventId/marks" element={<EventMarks />} />
           <Route path="/marks" element={<MarksDashboard />} />
           <Route path="/events/:eventId/attendance" element={<EventAttendance />} />
+          
+          {/* --- NEW ROUTE FOR PAYMENT VERIFICATION --- */}
+          <Route 
+            path="/events/:eventId/verify-payments"
+            element={
+              <RoleGuard allowedRoles={['admin', 'club', 'faculty']}>
+                <VerifyPayments />
+              </RoleGuard>
+            }
+          />
+
           <Route path="/attendance" element={<AttendanceDashboard />} />
-          <Route path="/leaderboard" element={<Leaderboard />} /> {/* Add new route */}
+          <Route path="/leaderboard" element={<Leaderboard />} />
         </Route>
 
         {/* Not Found */}

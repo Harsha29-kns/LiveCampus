@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, MapPin, Users, ImageUp, Tag, Calendar, Clock, Save } from 'lucide-react';
+import { ArrowLeft, MapPin, Users, ImageUp, Tag, Calendar, Clock, Save, DollarSign } from 'lucide-react';
 import { useEventStore } from '../stores/eventStore';
 import { useAuthStore } from '../stores/authStore';
 import Button from '../components/ui/Button';
@@ -18,7 +18,7 @@ const CreateEvent: React.FC = () => {
     const { user } = useAuthStore();
 
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [isLoading, setIsLoading] = useState(true); // Always start in loading state
+    const [isLoading, setIsLoading] = useState(true);
 
     const [formData, setFormData] = useState({
         title: '',
@@ -31,6 +31,9 @@ const CreateEvent: React.FC = () => {
         capacity: '',
         image: '',
         tags: '',
+        eventType: 'free',
+        eventFee: '',
+        upiId: '',
     });
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [errors, setErrors] = useState<Record<string, string>>({});
@@ -38,7 +41,6 @@ const CreateEvent: React.FC = () => {
     useEffect(() => {
         const loadEventData = async () => {
             if (isEditMode && id) {
-                // Ensure events are available in the store
                 if (events.length === 0) {
                     await fetchEvents();
                 }
@@ -49,7 +51,6 @@ const CreateEvent: React.FC = () => {
                         title: event.title || '',
                         description: event.description || '',
                         location: event.location || '',
-                        // CORRECTED: Use `format` for reliable date/time conversion
                         startDate: event.startDate ? format(parseISO(event.startDate), 'yyyy-MM-dd') : '',
                         startTime: event.startDate ? format(parseISO(event.startDate), 'HH:mm') : '',
                         endDate: event.endDate ? format(parseISO(event.endDate), 'yyyy-MM-dd') : '',
@@ -57,20 +58,23 @@ const CreateEvent: React.FC = () => {
                         capacity: event.capacity ? String(event.capacity) : '',
                         image: event.image || '',
                         tags: event.tags ? event.tags.join(', ') : '',
+                        eventType: event.eventType || 'free',
+                        eventFee: event.eventFee || '',
+                        upiId: event.upiId || '',
                     });
                 } else {
                     toast.error("Event not found for editing.");
                     navigate('/events');
                 }
             }
-            setIsLoading(false); // Stop loading after data is set or if not in edit mode
+            setIsLoading(false);
         };
 
         loadEventData();
     }, [isEditMode, id, getEventById, navigate, events, fetchEvents]);
 
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
         if (errors[name]) {
@@ -122,6 +126,15 @@ const CreateEvent: React.FC = () => {
         if (formData.capacity && (isNaN(Number(formData.capacity)) || Number(formData.capacity) <= 0)) {
             newErrors.capacity = 'Capacity must be a positive number';
         }
+
+        if (formData.eventType === 'paid') {
+            if (!formData.eventFee || isNaN(Number(formData.eventFee)) || Number(formData.eventFee) <= 0) {
+                newErrors.eventFee = 'A valid event fee is required.';
+            }
+            if (!formData.upiId || !formData.upiId.includes('@')) {
+                newErrors.upiId = 'A valid UPI ID is required (e.g., yourname@okhdfcbank).';
+            }
+        }
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
@@ -137,7 +150,6 @@ const CreateEvent: React.FC = () => {
         setIsSubmitting(true);
 
         try {
-            // CORRECTED: Preserve existing image URL if no new file is selected
             let imageUrl = formData.image || '';
             if (imageFile) {
                 toast.loading('Uploading image...');
@@ -149,42 +161,41 @@ const CreateEvent: React.FC = () => {
             const endDateTime = new Date(`${formData.endDate}T${formData.endTime}`);
             const tags = formData.tags.split(',').map(tag => tag.trim()).filter(Boolean);
 
+            const eventData: Partial<Event> = {
+                title: formData.title,
+                description: formData.description,
+                location: formData.location,
+                startDate: startDateTime.toISOString(),
+                endDate: endDateTime.toISOString(),
+                capacity: formData.capacity ? parseInt(formData.capacity, 10) : undefined,
+                image: imageUrl || undefined,
+                tags,
+                eventType: formData.eventType,
+                eventFee: formData.eventType === 'paid' ? formData.eventFee : undefined,
+                upiId: formData.eventType === 'paid' ? formData.upiId : undefined,
+            };
+
             if (isEditMode && id) {
                 const originalEvent = getEventById(id);
-                const eventData: Partial<Event> = {
-                    title: formData.title,
-                    description: formData.description,
-                    location: formData.location,
-                    startDate: startDateTime.toISOString(),
-                    endDate: endDateTime.toISOString(),
-                    capacity: formData.capacity ? parseInt(formData.capacity, 10) : undefined,
-                    image: imageUrl || undefined,
-                    tags,
-                    // CORRECTED: Do not change organizer info on edit
+                const dataToUpdate: Partial<Event> = {
+                    ...eventData,
                     organizerId: originalEvent?.organizerId,
                     organizerName: originalEvent?.organizerName,
                     organizerType: originalEvent?.organizerType,
                     createdBy: originalEvent?.createdBy,
                 };
-                await updateEvent(id, eventData);
+                await updateEvent(id, dataToUpdate);
                 toast.success('Event updated successfully!');
             } else {
-                 const eventData: Partial<Event> = {
-                    title: formData.title,
-                    description: formData.description,
-                    location: formData.location,
-                    startDate: startDateTime.toISOString(),
-                    endDate: endDateTime.toISOString(),
+                 const newEventData: Partial<Event> = {
+                    ...eventData,
                     organizerId: user.role === 'club' ? user.clubId : user.id,
                     organizerName: user.name,
                     organizerType: user.role,
                     createdBy: user.id,
-                    capacity: formData.capacity ? parseInt(formData.capacity, 10) : undefined,
-                    image: imageUrl || undefined,
-                    tags,
                     clubId: user.role === 'club' ? user.clubId : undefined,
                 };
-                await createEvent(eventData);
+                await createEvent(newEventData);
             }
             navigate('/events');
 
@@ -255,12 +266,31 @@ const CreateEvent: React.FC = () => {
                                     <ImageUp className="h-10 w-10 text-gray-400 mb-2" />
                                     <span className="text-sm font-medium text-indigo-600">Click to upload</span>
                                     <span className="text-xs text-gray-500 mt-1">or drag and drop</span>
-                                    <span className="text-xs text-gray-500 mt-2">PNG, JPG, GIF up to 10MB</span>
                                 </>
                             )}
                             <input id="image-upload" type="file" accept="image/*" onChange={handleImageChange} className="absolute inset-0 w-full h-full opacity-0" />
                         </label>
                     </div>
+                    
+                    <div className="p-6 bg-white rounded-lg border shadow-sm">
+                        <h2 className="text-lg font-semibold text-gray-800 mb-4">Payment Details</h2>
+                         <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Event Type</label>
+                                <select name="eventType" value={formData.eventType} onChange={handleChange} className="w-full p-2 border rounded-md shadow-sm border-gray-300">
+                                    <option value="free">Free Event</option>
+                                    <option value="paid">Paid Event</option>
+                                </select>
+                            </div>
+                            {formData.eventType === 'paid' && (
+                                <>
+                                    <Input label="Event Fee (INR)" name="eventFee" type="number" leftIcon={<DollarSign size={16} />} placeholder="e.g., 50" value={formData.eventFee} onChange={handleChange} error={errors.eventFee} required />
+                                    <Input label="Organizer's UPI ID" name="upiId" placeholder="your-id@oksbi" value={formData.upiId} onChange={handleChange} error={errors.upiId} required />
+                                </>
+                            )}
+                        </div>
+                    </div>
+                    
                     <div className="p-6 bg-white rounded-lg border shadow-sm">
                         <h2 className="text-lg font-semibold text-gray-800 mb-4">Optional Details</h2>
                         <div className="space-y-4">

@@ -9,7 +9,7 @@ export interface User {
   department?: string;
   year?: number;
   clubId?: string;
-  points?: number; // Points for participation
+  points?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -32,6 +32,10 @@ export interface Event {
   tags: string[];
   createdAt: string;
   updatedAt: string;
+  // --- NEW FIELDS ---
+  eventType: 'free' | 'paid';
+  eventFee?: string;
+  upiId?: string;
 }
 
 export interface Club {
@@ -52,7 +56,6 @@ export interface Club {
   createdAt: string;
   updatedAt: string;
 }
-
 export interface EventRegistration {
   id: string;
   eventId: string;
@@ -60,6 +63,10 @@ export interface EventRegistration {
   status: 'registered' | 'attended' | 'cancelled';
   registeredAt: string;
   checkedInAt?: string;
+  // --- NEW FIELDS ---
+  transactionId?: string;
+  transactionImage?: string;
+  paymentVerified?: boolean;
 }
 
 export interface Notification {
