@@ -28,6 +28,8 @@ const CreateEvent: React.FC = () => {
         startTime: '',
         endDate: '',
         endTime: '',
+        registrationStartDate: '', // New state for start
+        registrationDeadline: '',
         capacity: '',
         image: '',
         tags: '',
@@ -57,6 +59,8 @@ const CreateEvent: React.FC = () => {
                         startTime: event.startDate ? format(parseISO(event.startDate), 'HH:mm') : '',
                         endDate: event.endDate ? format(parseISO(event.endDate), 'yyyy-MM-dd') : '',
                         endTime: event.endDate ? format(parseISO(event.endDate), 'HH:mm') : '',
+                        registrationStartDate: event.registrationStartDate ? format(parseISO(event.registrationStartDate), "yyyy-MM-dd'T'HH:mm") : '',
+                        registrationDeadline: event.registrationDeadline ? format(parseISO(event.registrationDeadline), "yyyy-MM-dd'T'HH:mm") : '',
                         capacity: event.capacity ? String(event.capacity) : '',
                         image: event.image || '',
                         tags: event.tags ? event.tags.join(', ') : '',
@@ -124,9 +128,25 @@ const CreateEvent: React.FC = () => {
 
         const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
         const endDateTime = new Date(`${formData.endDate}T${formData.endTime}`);
+        const regStartDate = formData.registrationStartDate ? new Date(formData.registrationStartDate) : null;
+        const regDeadline = formData.registrationDeadline ? new Date(formData.registrationDeadline) : null;
+
         if (startDateTime >= endDateTime) {
             newErrors.endDate = 'End date/time must be after start date/time';
         }
+
+        if (regStartDate && regStartDate > startDateTime) {
+            newErrors.registrationStartDate = 'Registration start must be before the event begins.';
+        }
+
+        if (regDeadline && regDeadline > startDateTime) {
+            newErrors.registrationDeadline = 'Deadline must be before the event begins.';
+        }
+
+        if (regStartDate && regDeadline && regStartDate >= regDeadline) {
+            newErrors.registrationDeadline = 'Deadline must be after the registration start time.';
+        }
+
         if (formData.capacity && (isNaN(Number(formData.capacity)) || Number(formData.capacity) <= 0)) {
             newErrors.capacity = 'Capacity must be a positive number';
         }
@@ -150,7 +170,6 @@ const CreateEvent: React.FC = () => {
             return;
         }
 
-
         setIsSubmitting(true);
 
         try {
@@ -161,19 +180,17 @@ const CreateEvent: React.FC = () => {
                 toast.dismiss();
             }
 
-            const startDateTime = new Date(`${formData.startDate}T${formData.startTime}`);
-            const endDateTime = new Date(`${formData.endDate}T${formData.endTime}`);
-            const tags = formData.tags.split(',').map(tag => tag.trim()).filter(Boolean);
-
             const eventData: Partial<Event> = {
                 title: formData.title,
                 description: formData.description,
                 location: formData.location,
-                startDate: startDateTime.toISOString(),
-                endDate: endDateTime.toISOString(),
+                startDate: new Date(`${formData.startDate}T${formData.startTime}`).toISOString(),
+                endDate: new Date(`${formData.endDate}T${formData.endTime}`).toISOString(),
+                registrationStartDate: formData.registrationStartDate ? new Date(formData.registrationStartDate).toISOString() : undefined,
+                registrationDeadline: formData.registrationDeadline ? new Date(formData.registrationDeadline).toISOString() : undefined,
                 capacity: formData.capacity ? parseInt(formData.capacity, 10) : undefined,
                 image: imageUrl || undefined,
-                tags,
+                tags: formData.tags.split(',').map(tag => tag.trim()).filter(Boolean),
                 eventType: formData.eventType,
                 eventFee: formData.eventType === 'paid' ? formData.eventFee : undefined,
                 upiId: formData.eventType === 'paid' ? formData.upiId : undefined,
@@ -182,20 +199,12 @@ const CreateEvent: React.FC = () => {
             };
 
             if (isEditMode && id) {
-                const originalEvent = getEventById(id);
-                const dataToUpdate: Partial<Event> = {
-                    ...eventData,
-                    organizerId: originalEvent?.organizerId,
-                    organizerName: originalEvent?.organizerName,
-                    organizerType: originalEvent?.organizerType,
-                    createdBy: originalEvent?.createdBy,
-                };
-                await updateEvent(id, dataToUpdate);
+                await updateEvent(id, eventData);
                 toast.success('Event updated successfully!');
             } else {
-                 const newEventData: Partial<Event> = {
+                const newEventData: Partial<Event> = {
                     ...eventData,
-                    organizerId: user.role === 'club' ? user.clubId : user.id,
+                    organizerId: user.role === 'club' ? user.clubId! : user.id,
                     organizerName: user.name,
                     organizerType: user.role,
                     createdBy: user.id,
@@ -250,12 +259,35 @@ const CreateEvent: React.FC = () => {
                         </div>
                     </div>
                     <div className="p-6 bg-white rounded-lg border shadow-sm">
-                        <h2 className="text-lg font-semibold text-gray-800 mb-4">Date & Time</h2>
+                        <h2 className="text-lg font-semibold text-gray-800 mb-4">Event Schedule</h2>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <Input type="date" label="Start Date" name="startDate" value={formData.startDate} onChange={handleChange} error={errors.startDate} required leftIcon={<Calendar size={16}/>} />
                             <Input type="time" label="Start Time" name="startTime" value={formData.startTime} onChange={handleChange} error={errors.startTime} required leftIcon={<Clock size={16}/>} />
                             <Input type="date" label="End Date" name="endDate" value={formData.endDate} onChange={handleChange} error={errors.endDate} required leftIcon={<Calendar size={16}/>} />
                             <Input type="time" label="End Time" name="endTime" value={formData.endTime} onChange={handleChange} error={errors.endTime} required leftIcon={<Clock size={16}/>} />
+                        </div>
+                    </div>
+                     <div className="p-6 bg-white rounded-lg border shadow-sm">
+                        <h2 className="text-lg font-semibold text-gray-800 mb-4">Registration Window</h2>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                             <Input 
+                                label="Registration Starts On" 
+                                name="registrationStartDate" 
+                                type="datetime-local" 
+                                value={formData.registrationStartDate} 
+                                onChange={handleChange} 
+                                error={errors.registrationStartDate}
+                                helperText="Optional: When students can start registering."
+                            />
+                             <Input 
+                                label="Registration Deadline" 
+                                name="registrationDeadline" 
+                                type="datetime-local" 
+                                value={formData.registrationDeadline} 
+                                onChange={handleChange} 
+                                error={errors.registrationDeadline}
+                                helperText="Optional: When new registrations will be blocked."
+                            />
                         </div>
                     </div>
                     {user?.role === 'club' && (

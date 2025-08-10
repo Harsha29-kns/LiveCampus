@@ -21,6 +21,8 @@ export interface Event {
   location: string;
   startDate: string;
   endDate: string;
+  registrationStartDate?: string; // New field for registration start
+  registrationDeadline?: string;
   createdBy: string;
   organizerId: string;
   organizerName: string;

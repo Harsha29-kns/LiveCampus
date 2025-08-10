@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     Calendar, MapPin, Users, ArrowLeft, Edit, Trash2, CheckCircle, XCircle,
-    Share2, Info, AlertTriangle, PartyPopper, Ticket, Settings, ClipboardList, Star, Smartphone, Phone
+    Share2, Info, AlertTriangle, PartyPopper, Ticket, Settings, ClipboardList, Star, Smartphone, Phone, Lock, Clock as ClockIcon
 } from 'lucide-react';
 import { useEventStore } from '../stores/eventStore';
 import { useAuthStore } from '../stores/authStore';
@@ -10,7 +10,7 @@ import { Card, CardBody, CardHeader } from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import Input from '../components/ui/Input';
-import { format, parseISO, isPast, isSameDay } from 'date-fns';
+import { format, parseISO, isPast, isSameDay, formatDistanceToNow } from 'date-fns';
 import toast from 'react-hot-toast';
 import { doc, getDoc, query, collection, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
@@ -18,7 +18,6 @@ import QRCode from 'react-qr-code';
 import { toPng } from 'html-to-image';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 
-// New component for star ratings
 const StarRating = ({ rating, setRating, disabled = false }: { rating: number, setRating: (rating: number) => void, disabled?: boolean }) => (
     <div className="flex space-x-1">
         {[1, 2, 3, 4, 5].map((star) => (
@@ -31,7 +30,6 @@ const StarRating = ({ rating, setRating, disabled = false }: { rating: number, s
     </div>
 );
 
-
 const EventDetails: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
@@ -41,7 +39,7 @@ const EventDetails: React.FC = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [isRegistered, setIsRegistered] = useState(false);
     const [isActionLoading, setIsActionLoading] = useState(false);
-    const [registrationData, setRegistrationData] = useState<any>({ // Set a more specific type if possible
+    const [registrationData, setRegistrationData] = useState<any>({
         regNo: '', name: user?.name || '', branch: '', department: user?.department || '', phone: '',
     });
     const [club, setClub] = useState<any>(null);
@@ -78,7 +76,7 @@ const EventDetails: React.FC = () => {
 
                 if (fetchedEvent) {
                     setEvent(fetchedEvent);
-                    if (user && fetchedEvent.feedback?.some((f: any) => f.userId === user.id)) {
+                    if (user && (fetchedEvent as any).feedback?.some((f: any) => f.userId === user.id)) {
                         setHasGivenFeedback(true);
                     }
                 } else {
@@ -104,7 +102,6 @@ const EventDetails: React.FC = () => {
                 const regData = snapshot.docs[0].data();
                 setRegistrationData(regData);
                 setAttended(regData.status === 'attended');
-                // **FIX**: Set the payment status for the registered user
                 if (event.eventType === 'paid') {
                     if (regData.paymentVerified === true) {
                         setPaymentStatus('verified');
@@ -207,7 +204,7 @@ const EventDetails: React.FC = () => {
                 toast.loading('Uploading transaction proof...');
                 const formData = new FormData();
                 formData.append('file', transactionImage);
-                formData.append('upload_preset', 'transaction-proofs'); // Ensure this preset exists in Cloudinary
+                formData.append('upload_preset', 'transaction-proofs');
                 const res = await fetch('https://api.cloudinary.com/v1_1/ductmfmke/image/upload', {
                     method: 'POST',
                     body: formData,
@@ -234,7 +231,7 @@ const EventDetails: React.FC = () => {
             if (success) {
                 setIsRegistered(true);
                 if (event.eventType === 'paid') {
-                    setPaymentStatus('pending'); // Instantly update UI
+                    setPaymentStatus('pending');
                 }
                 toast.success('Registration submitted!');
                 const updatedEvent = getEventById(id);
@@ -267,7 +264,8 @@ const EventDetails: React.FC = () => {
         }
     };
 
-    const handleFeedbackSubmit = async () => {
+    const handleFeedbackSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
         if (Object.values(feedback).some(v => typeof v === 'number' && v === 0)) {
             toast.error("Please provide a rating for all questions.");
             return;
@@ -281,7 +279,6 @@ const EventDetails: React.FC = () => {
         setIsActionLoading(false);
     };
 
-
     if (isLoading) {
         return (
             <div className="flex justify-center items-center h-screen">
@@ -293,7 +290,7 @@ const EventDetails: React.FC = () => {
     if (!event) {
         return null;
     }
-    
+
     const startDate = parseISO(event.startDate);
     const endDate = parseISO(event.endDate);
     const isSameDayEvent = isSameDay(startDate, endDate);
@@ -302,7 +299,6 @@ const EventDetails: React.FC = () => {
         : `${format(startDate, 'E, d LLL yyyy')} - ${format(endDate, 'E, d LLL yyyy')}`;
     const formattedTime = `${format(startDate, 'p')} - ${format(endDate, 'p')}`;
 
-
     const isAdmin = user?.role === 'admin';
     const isOrganizer = user?.id === event.createdBy || isAdmin || (user?.role === event.organizerType && (user.clubId ? user.clubId === event.organizerId : user.id === event.organizerId));
     const isPending = event.status === 'pending';
@@ -310,16 +306,18 @@ const EventDetails: React.FC = () => {
     const isRejected = event.status === 'rejected';
     const isCancelled = event.status === 'cancelled';
     const isCompleted = isPast(endDate);
-    const isFull = event.capacity ? event.registeredCount >= event.capacity : false;
+    
+    const isRegistrationOpen = event.registrationStartDate ? isPast(parseISO(event.registrationStartDate)) : true;
+    const isDeadlineExpired = event.registrationDeadline ? isPast(parseISO(event.registrationDeadline)) : false;
+    const isCapacityFull = event.capacity ? event.registeredCount >= event.capacity : false;
+    const canRegister = isRegistrationOpen && !isDeadlineExpired && !isCapacityFull;
 
     const upiIntentLink = event && event.eventType === 'paid'
         ? `upi://pay?pa=${event.upiId}&pn=${encodeURIComponent(event.organizerName)}&am=${event.eventFee}&cu=INR&tn=${encodeURIComponent(event.title)}`
         : '';
 
-
     return (
         <div className="bg-gray-50 min-h-screen animate-fade-in">
-            {/* Hero Section */}
             <div className="relative h-72 md:h-96 w-full">
                 <img src={event.image || `https://source.unsplash.com/1600x900/?${event.tags?.[0] || 'event'}`} alt={event.title} className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent" />
@@ -332,11 +330,8 @@ const EventDetails: React.FC = () => {
                     </div>
                 </div>
             </div>
-
-            {/* Main Content Area */}
             <div className="max-w-7xl mx-auto p-4 md:p-8">
                 <div className="lg:grid lg:grid-cols-3 lg:gap-8 items-start">
-                    {/* Left Column (Content) */}
                     <main className="lg:col-span-2 space-y-8 mb-8 lg:mb-0">
                         {isPending && <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 p-4 rounded-r-md flex items-center gap-3"><AlertTriangle/><div><p className="font-bold">Pending Approval</p><p>This event is awaiting administrator review.</p></div></div>}
                         {isCancelled && <div className="bg-gray-100 border-l-4 border-gray-500 text-gray-800 p-4 rounded-r-md flex items-center gap-3"><Info/><div><p className="font-bold">Event Cancelled</p></div></div>}
@@ -361,21 +356,37 @@ const EventDetails: React.FC = () => {
 
                         {isCompleted && attended && (
                             <Card>
-                                {/* Feedback section remains the same */}
+                                {/* Feedback Section */}
                             </Card>
                         )}
                     </main>
 
-                    {/* Right Column (Unified Action Panel) */}
                     <aside className="lg:col-span-1 lg:sticky lg:top-8 space-y-6">
                         <Card className="shadow-lg">
                             <CardBody className="space-y-4">
                                 <div className="flex items-start gap-4">
                                     <Calendar className="w-5 h-5 text-indigo-600 mt-1 flex-shrink-0"/>
-                                    <p className="text-gray-700"><strong className="block text-gray-900">Date & Time</strong>{formattedDate}<br/>{formattedTime}</p>
+                                    <p className="text-gray-700"><strong className="block text-gray-900">Event Date & Time</strong>{formattedDate}<br/>{formattedTime}</p>
                                 </div>
                                 <div className="flex items-start gap-4"><MapPin className="w-5 h-5 text-indigo-600 mt-1 flex-shrink-0"/><p className="text-gray-700"><strong className="block text-gray-900">Location</strong>{event.location}</p></div>
                                 <div className="flex items-start gap-4"><Users className="w-5 h-5 text-indigo-600 mt-1 flex-shrink-0"/><p className="text-gray-700"><strong className="block text-gray-900">Capacity</strong>{event.registeredCount} / {event.capacity || 'Unlimited'}</p></div>
+                                
+                                {event.registrationStartDate && (
+                                    <div className="flex items-start gap-4 pt-4 border-t">
+                                        <ClockIcon className="w-5 h-5 text-indigo-600 mt-1 flex-shrink-0"/>
+                                        <p className="text-gray-700"><strong className="block text-gray-900">Registration Window</strong>
+                                        {format(parseISO(event.registrationStartDate), 'MMM d, h:mm a')}
+                                        {event.registrationDeadline && ` - ${format(parseISO(event.registrationDeadline), 'MMM d, h:mm a')}`}
+                                        </p>
+                                    </div>
+                                )}
+                                
+                                {canRegister && event.registrationDeadline && (
+                                    <div className="text-center text-xs text-gray-500 pt-2">
+                                        Note: Registration closes in {formatDistanceToNow(parseISO(event.registrationDeadline))}.
+                                    </div>
+                                )}
+                                
                                 <hr className="my-2" />
 
                                 {isApproved && !isCompleted && !isCancelled ? (
@@ -394,8 +405,9 @@ const EventDetails: React.FC = () => {
                                                 </div>
                                             )}
                                             {paymentStatus === 'rejected' && (
-                                                <div className="p-4 bg-red-100 text-red-800 rounded-lg text-center font-semibold">
-                                                    <p>Your payment was rejected. Please contact the organizer for details.</p>
+                                                <div className="p-4 bg-red-100 text-red-800 rounded-lg text-center">
+                                                    <p className="font-bold">Your payment was rejected by the organizer.</p>
+                                                    <p className="text-sm mt-1">If you have any questions, please contact the event organizer directly.</p>
                                                 </div>
                                             )}
                                             {event.eventType === 'free' && (
@@ -404,8 +416,32 @@ const EventDetails: React.FC = () => {
                                                     <div className="flex flex-col items-center pt-2"><p className="mb-3 text-sm text-gray-500">Show this QR at check-in:</p><div ref={qrRef} className="bg-white p-2 rounded-lg border"><QRCode value={JSON.stringify({ eventId: event.id, userId: user?.id })} size={180} level="H" /></div><Button className="mt-3" size="sm" variant="outline" onClick={handleDownloadQR}>Download QR</Button></div>
                                                 </div>
                                             )}
-                                            <Button variant="outline" fullWidth onClick={handleCancelRegistration} isLoading={isActionLoading}>Cancel Registration</Button>
+                                            {paymentStatus !== 'rejected' && (
+                                                 <Button variant="outline" fullWidth onClick={handleCancelRegistration} isLoading={isActionLoading}>Cancel Registration</Button>
+                                            )}
                                         </>
+                                    ) : !isRegistrationOpen && event.registrationStartDate ? (
+                                        <div className="p-4 bg-blue-50 text-blue-800 rounded-lg text-center">
+                                            <div className="flex justify-center items-center gap-2 font-bold">
+                                                <ClockIcon size={18} />
+                                                <span>Registrations Not Yet Open</span>
+                                            </div>
+                                            <p className="text-sm mt-1">
+                                                Registrations will open on {format(parseISO(event.registrationStartDate), 'MMM d, yyyy \'at\' h:mm a')}.
+                                            </p>
+                                        </div>
+                                    ) : !canRegister ? (
+                                        <div className="p-4 bg-red-50 text-red-800 rounded-lg text-center">
+                                            <div className="flex justify-center items-center gap-2 font-bold">
+                                                <Lock size={18} />
+                                                <span>Registrations Closed</span>
+                                            </div>
+                                            {isDeadlineExpired ? (
+                                                <p className="text-sm mt-1">The registration deadline has passed.</p>
+                                            ) : (
+                                                <p className="text-sm mt-1">This event has reached its maximum capacity.</p>
+                                            )}
+                                        </div>
                                     ) : (
                                         user?.role === 'student' ? (
                                             <form onSubmit={handleStudentRegister} className="space-y-4">
@@ -414,19 +450,9 @@ const EventDetails: React.FC = () => {
                                                     <div className="p-4 bg-indigo-50 rounded-lg text-center">
                                                         <h4 className="font-bold text-indigo-800">Payment Required: ₹{event.eventFee}</h4>
                                                         {isMobile ? (
-                                                            <>
-                                                                <p className="text-sm text-indigo-700 mb-3">Click below to pay with your UPI app.</p>
-                                                                <a href={upiIntentLink} className="inline-block w-full">
-                                                                  <Button type="button" fullWidth leftIcon={<Smartphone size={16}/>}>Pay with UPI</Button>
-                                                                </a>
-                                                            </>
+                                                            <a href={upiIntentLink} className="inline-block w-full mt-2"><Button type="button" fullWidth leftIcon={<Smartphone size={16}/>}>Pay with UPI</Button></a>
                                                         ) : (
-                                                            <>
-                                                                <p className="text-sm text-indigo-700 mb-3">Scan the QR code with your UPI app to pay.</p>
-                                                                <div className="mt-2 bg-white p-2 inline-block rounded-lg border">
-                                                                    <QRCode value={upiIntentLink} size={160} />
-                                                                </div>
-                                                            </>
+                                                            <div className="mt-2 bg-white p-2 inline-block rounded-lg border"><QRCode value={upiIntentLink} size={160} /></div>
                                                         )}
                                                         <p className="text-xs text-gray-500 mt-3">After paying, upload the screenshot and enter the Transaction ID below.</p>
                                                     </div>
