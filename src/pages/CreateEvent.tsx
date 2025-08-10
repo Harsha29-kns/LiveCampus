@@ -277,7 +277,7 @@ const CreateEvent: React.FC = () => {
                                 value={formData.registrationStartDate} 
                                 onChange={handleChange} 
                                 error={errors.registrationStartDate}
-                                helperText="Optional: When students can start registering."
+                                helperText="Note: When students can start registering."
                             />
                              <Input 
                                 label="Registration Deadline" 
@@ -286,7 +286,7 @@ const CreateEvent: React.FC = () => {
                                 value={formData.registrationDeadline} 
                                 onChange={handleChange} 
                                 error={errors.registrationDeadline}
-                                helperText="Optional: When new registrations will be blocked."
+                                helperText="Note: When new registrations will be blocked."
                             />
                         </div>
                     </div>
