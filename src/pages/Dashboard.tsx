@@ -15,23 +15,24 @@ import LoadingSpinner from '../components/ui/LoadingSpinner'; // Import the load
 
 const Dashboard: React.FC = () => {
   const { user, setUser } = useAuthStore();
-  const { events, fetchEvents, isLoading: isEventsLoading } = useEventStore(); // Renamed to avoid conflict
-  const { clubs, fetchClubs, isLoading: isClubsLoading } = useClubStore(); // Renamed to avoid conflict
+  const { events, fetchEvents, isLoading: isEventsLoading } = useEventStore(); // Get event loading state
+  const { clubs, fetchClubs, isLoading: isClubsLoading } = useClubStore(); // Get club loading state
   const [registeredEvents, setRegisteredEvents] = useState<Event[]>([]);
   const [showProfileForm, setShowProfileForm] = useState(false);
   const navigate = useNavigate();
 
-  // A combined loading state
+  // Combined loading state to wait for both events and clubs
   const isDataLoading = isEventsLoading || isClubsLoading;
 
   useEffect(() => {
+    // Fetch both clubs and events when the component mounts
     fetchClubs();
     fetchEvents();
   }, [fetchClubs, fetchEvents]);
 
   useEffect(() => {
     const loadRegisteredEvents = async () => {
-      if (user?.role === 'student' && user.id) {
+      if (user?.role === 'student' && user.id && events.length > 0) {
         const registrationsQuery = query(
           collection(db, 'eventRegistrations'),
           where('userId', '==', user.id)
@@ -112,7 +113,7 @@ const Dashboard: React.FC = () => {
       !user.club.vicePresident
     );
 
-  // Display a full-page loading spinner while initial data is being fetched.
+  // Use the combined loading state to show the spinner
   if (isDataLoading) {
     return (
       <div className="flex items-center justify-center h-full min-h-[60vh]">
