@@ -59,8 +59,10 @@ export const useEventStore = create<EventState>((set, get) => ({
     }
 
     try {
+        const cleanEventData = Object.fromEntries(Object.entries(eventData).filter(([, value]) => value !== undefined));
+        
         const docRef = await addDoc(collection(db, 'events'), {
-            ...eventData,
+            ...cleanEventData,
             registeredCount: 0,
             status: eventData?.organizerType === 'admin' ? 'approved' : 'pending',
             createdAt: new Date().toISOString(),
@@ -172,21 +174,24 @@ export const useEventStore = create<EventState>((set, get) => ({
   updateEvent: async (id, eventData) => {
     set({ isLoading: true });
     try {
-      // CORRECTED: Ensure only editable fields are passed to updateDoc
+      
       const dataToUpdate = {
           ...eventData,
           updatedAt: new Date().toISOString(),
       };
-      // Prevent overwriting original creator info
+      
       delete dataToUpdate.organizerId;
       delete dataToUpdate.organizerName;
       delete dataToUpdate.organizerType;
       delete dataToUpdate.createdBy;
 
-      await updateDoc(doc(db, 'events', id), dataToUpdate);
+      
+      const cleanDataToUpdate = Object.fromEntries(Object.entries(dataToUpdate).filter(([, value]) => value !== undefined));
+
+      await updateDoc(doc(db, 'events', id), cleanDataToUpdate);
       toast.success('Event updated!');
       set({ isLoading: false });
-      // The store will auto-update via the onSnapshot listener
+      
       return get().getEventById(id);
     } catch (error) {
       toast.error('Failed to update event');

@@ -1,185 +1,387 @@
+// src/pages/AdminUserManagement.tsx
 import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '../stores/authStore';
-import { useEventStore } from '../stores/eventStore';
-import { useNavigate } from 'react-router-dom';
+import { useClubStore } from '../stores/clubStore';
 import Button from '../components/ui/Button';
+import { Card, CardBody } from '../components/ui/Card';
 import { db } from '../firebaseConfig';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import * as XLSX from 'xlsx';
-import { Calendar, Download, Users, PlusCircle, ClipboardList, CalendarX } from 'lucide-react';
-import Badge from '../components/ui/Badge';
+import { doc, updateDoc, collection, getDocs, deleteDoc } from 'firebase/firestore';
+import toast from 'react-hot-toast';
+import LoadingSpinner from '../components/ui/LoadingSpinner';
 
-// --- Helper function to determine event status based on current date ---
-const getEventStatus = (startDateStr: string, endDateStr: string) => {
-    const now = new Date();
-    const startDate = new Date(startDateStr);
-    const endDate = new Date(endDateStr);
+const AdminUserManagement: React.FC = () => {
+    const { fetchUsers, deleteUser, addUser } = useAuthStore();
+    const { clubs, fetchClubs, deleteClub } = useClubStore();
 
-    if (endDate < now) {
-        return { text: 'Completed', variant: 'neutral' as const };
-    }
-    if (startDate > now) {
-        return { text: 'Upcoming', variant: 'info' as const };
-    }
-    return { text: 'Live', variant: 'success' as const };
-};
+    const [users, setUsers] = useState<any[]>([]);
+    const [newUser, setNewUser] = useState({ name: '', email: '', role: 'student' });
 
-// --- Skeleton Component for Loading State ---
-const EventCardSkeleton: React.FC = () => (
-    <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200 animate-pulse">
-        <div className="flex justify-between items-start mb-4">
-            <div className="w-3/4 h-6 bg-gray-200 rounded"></div>
-            <div className="w-1/5 h-6 bg-gray-200 rounded-full"></div>
-        </div>
-        <div className="space-y-3 mb-6">
-            <div className="w-1/2 h-4 bg-gray-200 rounded"></div>
-            <div className="w-1/3 h-4 bg-gray-200 rounded"></div>
-        </div>
-        <div className="flex flex-col sm:flex-row gap-3">
-            <div className="w-full h-10 bg-gray-200 rounded-md"></div>
-            <div className="w-full h-10 bg-gray-200 rounded-md"></div>
-        </div>
-    </div>
-);
-
-// --- Main Dashboard Component ---
-const AttendanceDashboard: React.FC = () => {
-    // --- All original state and hooks are preserved ---
-    const { user } = useAuthStore();
-    const { events, fetchEvents } = useEventStore();
-    const navigate = useNavigate();
-    const [myEvents, setMyEvents] = useState<any[]>([]);
+    const [editingClubId, setEditingClubId] = useState<string | null>(null);
+    const [clubImageFile, setClubImageFile] = useState<File | null>(null);
+    const [clubImageUrl, setClubImageUrl] = useState('');
+    const [isUploading, setIsUploading] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
 
-    // --- All original logic is preserved ---
     useEffect(() => {
-        // Set loading to true whenever we fetch
-        setIsLoading(true);
-        fetchEvents();
-    }, [fetchEvents]);
-
-    useEffect(() => {
-        if (user?.role === 'club') {
-            const myClubEvents = events
-                .filter(event => event.clubId === user.clubId)
-                .sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime()); // Sort by most recent
-            setMyEvents(myClubEvents);
-        }
-        setIsLoading(false); // Set loading to false after processing
-    }, [events, user]);
-
-    const handleDownloadAttendance = async (eventId: string, eventTitle: string) => {
-        // This function's core logic remains unchanged
-        const regsQuery = query(collection(db, 'eventRegistrations'), where('eventId', '==', eventId));
-        const regsSnap = await getDocs(regsQuery);
-        const regs = regsSnap.docs.map(doc => doc.data());
-        if (!regs.length) {
-            alert('No attendance records found for this event.');
-            return;
-        }
-        const data = regs.map((reg: any, idx: number) => ({
-            'S.No': idx + 1,
-            'Reg. No': reg.regNo || '',
-            'Name': reg.name || '',
-            'Status': reg.status === 'attended' ? 'Present' : 'Absent',
-            'Checked In At': reg.checkedInAt ? new Date(reg.checkedInAt).toLocaleString() : 'N/A',
-        }));
-        const worksheet = XLSX.utils.json_to_sheet(data);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, 'Attendance');
-        XLSX.writeFile(workbook, `${eventTitle || 'event'}-attendance.xlsx`);
+        const loadData = async () => {
+            setIsLoading(true);
+            await Promise.all([
+                fetchUsers().then(setUsers),
+                fetchClubs()
+            ]);
+            setIsLoading(false);
+        };
+        loadData();
+    }, [fetchUsers, fetchClubs]);
+    
+    const uploadToCloudinary = async (file: File) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('upload_preset', 'club-images'); // Make sure this preset exists in your Cloudinary account
+        const res = await fetch('https://api.cloudinary.com/v1_1/ductmfmke/image/upload', { // Replace with your cloud name
+            method: 'POST',
+            body: formData,
+        });
+        const data = await res.json();
+        return data.secure_url;
     };
 
-    return (
-        <div className="animate-fade-in space-y-8">
-            {/* --- Header Section --- */}
-            <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
-                <div>
-                    <h1 className="text-3xl font-bold text-gray-900">Club Event Management</h1>
-                    <p className="mt-1 text-gray-600">
-                        Manage attendance and download reports for your events.
-                    </p>
-                </div>
-                <Button 
-                    onClick={() => navigate('/events/create')}
-                    leftIcon={<PlusCircle size={18} />}
-                >
-                    Create New Event
-                </Button>
+    const handleAddUser = async (e: React.FormEvent) => {
+        e.preventDefault();
+        await addUser(newUser.name, newUser.email, 'defaultpassword', newUser.role);
+        setNewUser({ name: '', email: '', role: 'student' });
+        fetchUsers().then(setUsers);
+    };
+
+    const handleClubImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            setClubImageFile(e.target.files[0]);
+        }
+    };
+
+    const handleClubImageUpdate = async (clubId: string) => {
+        if (!clubImageFile && !clubImageUrl) {
+            toast.error("Please select an image file or provide an image URL.");
+            return;
+        }
+        setIsUploading(true);
+        try {
+            let logoUrl = clubImageUrl;
+            if (clubImageFile) {
+                logoUrl = await uploadToCloudinary(clubImageFile);
+            }
+            if (logoUrl) {
+                await updateDoc(doc(db, 'clubs', clubId), { logo: logoUrl });
+                toast.success("Club image updated!");
+                setEditingClubId(null);
+                setClubImageFile(null);
+                setClubImageUrl('');
+                fetchClubs();
+            }
+        } catch (error) {
+            toast.error("Failed to update club image.");
+            console.error(error);
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+    const students = users.filter(u => u.role === 'student' && u.status === 'approved');
+    const clubsUsers = users.filter(u => u.role === 'club' && u.status === 'approved');
+    const facultyUsers = users.filter(u => u.role === 'faculty' && u.status === 'approved');
+
+    const handleApprove = async (userId: string, userEmail: string, userName: string) => {
+        await updateDoc(doc(db, 'users', userId), { status: 'approved' });
+        setUsers(users => users.map(u => u.id === userId ? { ...u, status: 'approved' } : u));
+        toast.success('User approved!');
+
+        try {
+            await fetch('https://live-campus.vercel.app/api/send-approval', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: userEmail, name: userName }),
+            });
+            toast.success('Approval email sent!');
+        } catch (error) {
+            toast.error('Failed to send approval email.');
+        }
+    };
+
+    const handleReject = async (userId: string, userEmail: string, userName: string) => {
+        await updateDoc(doc(db, 'users', userId), { status: 'rejected' });
+        setUsers(users => users.map(u => u.id === userId ? { ...u, status: 'rejected' } : u));
+        toast.success('User rejected!');
+
+        try {
+            await fetch('https://live-campus.vercel.app/api/send-approval', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: userEmail,
+                    name: userName,
+                    rejected: true
+                }),
+            });
+            toast.success('Rejection email sent!');
+        } catch (error) {
+            toast.error('Failed to send rejection email.');
+        }
+    };
+    
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center min-h-[60vh]">
+                <LoadingSpinner size="lg" text="Loading management data..." />
             </div>
-            
-            {/* --- Content Area --- */}
-            <div className="bg-gray-50 p-4 sm:p-6 rounded-xl border border-gray-200">
-                {isLoading ? (
-                    // --- Loading State ---
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <EventCardSkeleton />
-                        <EventCardSkeleton />
-                        <EventCardSkeleton />
-                        <EventCardSkeleton />
-                    </div>
-                ) : myEvents.length === 0 ? (
-                    // --- Empty State ---
-                    <div className="text-center py-16">
-                        <CalendarX className="mx-auto h-16 w-16 text-gray-400" />
-                        <h3 className="mt-4 text-xl font-semibold text-gray-800">No Club Events Found</h3>
-                        <p className="mt-2 text-gray-500">Get started by creating a new event for your club.</p>
-                        <Button 
-                            className="mt-6"
-                            onClick={() => navigate('/events/create')}
-                            leftIcon={<PlusCircle size={18} />}
+        );
+    }
+
+    return (
+        <div className="max-w-6xl mx-auto py-10 space-y-10">
+            <h1 className="text-3xl font-bold text-primary-800 mb-6">Admin User & Club Management</h1>
+
+            <Card>
+                <CardBody>
+                    <h3 className="font-semibold text-lg mb-4 text-primary-700">Add New User</h3>
+                    <form onSubmit={handleAddUser} className="flex flex-col md:flex-row gap-3 mb-4">
+                        <input
+                            type="text"
+                            placeholder="Name"
+                            value={newUser.name}
+                            onChange={e => setNewUser({ ...newUser, name: e.target.value })}
+                            className="border px-3 py-2 rounded w-full md:w-1/4"
+                            required
+                        />
+                        <input
+                            type="email"
+                            placeholder="Email"
+                            value={newUser.email}
+                            onChange={e => setNewUser({ ...newUser, email: e.target.value })}
+                            className="border px-3 py-2 rounded w-full md:w-1/4"
+                            required
+                        />
+                        <select
+                            value={newUser.role}
+                            onChange={e => setNewUser({ ...newUser, role: e.target.value })}
+                            className="border px-3 py-2 rounded w-full md:w-1/4"
                         >
-                            Create Your First Event
-                        </Button>
-                    </div>
-                ) : (
-                    // --- Events Grid ---
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {myEvents.map(event => {
-                            const status = getEventStatus(event.startDate, event.endDate);
-                            return (
-                                <div key={event.id} className="bg-white p-6 rounded-lg shadow-md border border-gray-200 flex flex-col hover:shadow-lg transition-shadow duration-300">
-                                    <div className="flex justify-between items-start mb-4">
-                                        <h3 className="text-xl font-bold text-gray-800 pr-2">{event.title}</h3>
-                                        <Badge variant={status.variant}>{status.text}</Badge>
-                                    </div>
-                                    <div className="space-y-2 text-sm text-gray-600 mb-6 flex-grow">
-                                        <div className="flex items-center gap-2">
-                                            <Calendar size={16} className="text-gray-400" />
-                                            <span>{new Date(event.startDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <Users size={16} className="text-gray-400" />
-                                            <span>{event.registeredCount || 0} Registered</span>
-                                        </div>
-                                    </div>
-                                    <div className="flex flex-col sm:flex-row gap-3">
-                                        <Button
-                                            fullWidth
-                                            size="sm"
-                                            onClick={() => navigate(`/events/${event.id}/attendance`)}
-                                            leftIcon={<ClipboardList size={16} />}
-                                        >
-                                            Manage
-                                        </Button>
-                                        <Button
-                                            fullWidth
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() => handleDownloadAttendance(event.id, event.title)}
-                                            leftIcon={<Download size={16} />}
-                                        >
-                                            Download
-                                        </Button>
+                            <option value="student">Student</option>
+                            <option value="club">Club</option>
+                            <option value="faculty">Faculty</option>
+                        </select>
+                        <Button type="submit" size="md" variant="primary" className="w-full md:w-auto">Add User</Button>
+                    </form>
+                </CardBody>
+            </Card>
+
+            <Card>
+                <CardBody>
+                    <h2 className="text-xl font-bold mb-2">Pending Approvals</h2>
+                    {users.filter(u => u.status === 'pending').length === 0 ? (
+                        <div className="text-neutral-500">No pending users.</div>
+                    ) : (
+                        <ul>
+                            {users.filter(u => u.status === 'pending').map(u => (
+                                <li key={u.id} className="flex items-center gap-4 mb-2">
+                                    <span>{u.name} ({u.email}) - {u.role}</span>
+                                    <Button size="sm" onClick={() => handleApprove(u.id, u.email, u.name)}>Approve</Button>
+                                    <Button size="sm" variant="danger" onClick={() => handleReject(u.id, u.email, u.name)}>Reject</Button>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </CardBody>
+            </Card>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <Card>
+                    <CardBody>
+                        <h2 className="font-semibold text-primary-700 mb-2">Students</h2>
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full text-left mb-2">
+                                <thead>
+                                    <tr>
+                                        <th className="px-2 py-1 border-b">Name</th>
+                                        <th className="px-2 py-1 border-b">Email</th>
+                                        <th className="px-2 py-1 border-b">Created At</th>
+                                        <th className="px-2 py-1 border-b">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {students.map(user => (
+                                        <tr key={user.id}>
+                                            <td className="px-2 py-1 border-b">{user.name}</td>
+                                            <td className="px-2 py-1 border-b">{user.email}</td>
+                                            <td className="px-2 py-1 border-b">{user.createdAt ? new Date(user.createdAt).toLocaleString() : '-'}</td>
+                                            <td className="px-2 py-1 border-b">
+                                                <Button variant="danger" size="sm" onClick={() => { deleteUser(user.id); fetchUsers().then(setUsers); }}>
+                                                    Delete
+                                                </Button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </CardBody>
+                </Card>
+
+                <Card>
+                    <CardBody>
+                        <h2 className="font-semibold text-primary-700 mb-2">Club Users</h2>
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full text-left mb-2">
+                                <thead>
+                                    <tr>
+                                        <th className="px-2 py-1 border-b">Name</th>
+                                        <th className="px-2 py-1 border-b">Email</th>
+                                        <th className="px-2 py-1 border-b">Created At</th>
+                                        <th className="px-2 py-1 border-b">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {clubsUsers.map(user => (
+                                        <tr key={user.id}>
+                                            <td className="px-2 py-1 border-b">{user.name}</td>
+                                            <td className="px-2 py-1 border-b">{user.email}</td>
+                                            <td className="px-2 py-1 border-b">{user.createdAt ? new Date(user.createdAt).toLocaleString() : '-'}</td>
+                                            <td className="px-2 py-1 border-b">
+                                                <Button variant="danger" size="sm" onClick={() => { deleteUser(user.id); fetchUsers().then(setUsers); }}>
+                                                    Delete
+                                                </Button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </CardBody>
+                </Card>
+
+                <Card>
+                    <CardBody>
+                        <h2 className="font-semibold text-primary-700 mb-2">Faculty Users</h2>
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full text-left mb-2">
+                                <thead>
+                                    <tr>
+                                        <th className="px-2 py-1 border-b">Name</th>
+                                        <th className="px-2 py-1 border-b">Email</th>
+                                        <th className="px-2 py-1 border-b">Created At</th>
+                                        <th className="px-2 py-1 border-b">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {facultyUsers.map(user => (
+                                        <tr key={user.id}>
+                                            <td className="px-2 py-1 border-b">{user.name}</td>
+                                            <td className="px-2 py-1 border-b">{user.email}</td>
+                                            <td className="px-2 py-1 border-b">{user.createdAt ? new Date(user.createdAt).toLocaleString() : '-'}</td>
+                                            <td className="px-2 py-1 border-b">
+                                                <Button variant="danger" size="sm" onClick={() => { deleteUser(user.id); fetchUsers().then(setUsers); }}>
+                                                    Delete
+                                                </Button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </CardBody>
+                </Card>
+            </div>
+
+            <Card>
+                <CardBody>
+                    <h2 className="font-semibold text-lg text-primary-700 mb-4">Clubs</h2>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {clubs.map(club => (
+                            <div
+                                key={club.id}
+                                className="flex flex-col items-center bg-white border rounded-xl shadow p-6 relative"
+                            >
+                                <div className="absolute top-2 right-2 flex gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setEditingClubId(club.id)}
+                                    >
+                                        Edit Image
+                                    </Button>
+                                    <Button
+                                        variant="danger"
+                                        size="sm"
+                                        onClick={() => { deleteClub(club.id); fetchClubs(); }}
+                                    >
+                                        Delete
+                                    </Button>
+                                </div>
+                                <div className="mb-3">
+                                    <div className="h-20 w-20 rounded-full bg-neutral-100 border flex items-center justify-center overflow-hidden">
+                                        {club.logo ? (
+                                            <img
+                                                src={club.logo}
+                                                alt="logo"
+                                                className="h-20 w-20 object-cover"
+                                            />
+                                        ) : (
+                                            <span className="text-neutral-400 text-4xl">🏷️</span>
+                                        )}
                                     </div>
                                 </div>
-                            );
-                        })}
+                                <div className="text-center">
+                                    <div className="font-bold text-lg">{club.name}</div>
+                                    <div className="text-neutral-500 text-sm mb-2">{club.description}</div>
+                                </div>
+                                {editingClubId === club.id && (
+                                    <div className="w-full mt-4 flex flex-col gap-2 items-center bg-neutral-50 p-3 rounded-lg border">
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={handleClubImageChange}
+                                            className="border px-2 py-1 rounded w-full"
+                                        />
+                                        <span className="text-sm text-neutral-500">or</span>
+                                        <input
+                                            type="url"
+                                            placeholder="Paste image URL"
+                                            value={clubImageUrl}
+                                            onChange={e => setClubImageUrl(e.target.value)}
+                                            className="border px-2 py-1 rounded w-full"
+                                        />
+                                        <div className="flex gap-2 mt-2">
+                                            <Button
+                                                size="sm"
+                                                variant="primary"
+                                                isLoading={isUploading}
+                                                onClick={() => handleClubImageUpdate(club.id)}
+                                            >
+                                                Save
+                                            </Button>
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={() => {
+                                                    setEditingClubId(null);
+                                                    setClubImageFile(null);
+                                                    setClubImageUrl('');
+                                                }}
+                                            >
+                                                Cancel
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                        {clubs.length === 0 && (
+                            <div className="text-neutral-500 text-center py-8 col-span-full">No clubs found.</div>
+                        )}
                     </div>
-                )}
-            </div>
+                </CardBody>
+            </Card>
         </div>
     );
 };
 
-export default AttendanceDashboard;
+export default AdminUserManagement;

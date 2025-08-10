@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     Calendar, MapPin, Users, ArrowLeft, Edit, Trash2, CheckCircle, XCircle,
-    Share2, Info, AlertTriangle, PartyPopper, Ticket, Settings, ClipboardList, Star, Smartphone
+    Share2, Info, AlertTriangle, PartyPopper, Ticket, Settings, ClipboardList, Star, Smartphone, Phone
 } from 'lucide-react';
 import { useEventStore } from '../stores/eventStore';
 import { useAuthStore } from '../stores/authStore';
@@ -322,8 +322,19 @@ const EventDetails: React.FC = () => {
                         {isAdmin && isPending && (<Card className="border-yellow-300 bg-yellow-50"><CardHeader><h3 className="text-lg font-bold text-yellow-900">Admin Approval Required</h3></CardHeader><CardBody className="flex items-center gap-4"><p className="text-sm text-yellow-800 flex-grow">Review the details and take action.</p><Button size="sm" leftIcon={<CheckCircle size={16}/>} onClick={handleApprove} isLoading={isActionLoading}>Approve</Button><Button size="sm" variant="danger" leftIcon={<XCircle size={16}/>} onClick={handleReject} isLoading={isActionLoading}>Reject</Button></CardBody></Card>)}
 
                         <Card><CardHeader><h2 className="text-2xl font-bold text-gray-900">About This Event</h2></CardHeader><CardBody><p className="text-gray-700 text-lg whitespace-pre-line leading-relaxed">{event.description}</p>{event.tags?.length > 0 && <div className="mt-6 flex flex-wrap gap-2">{event.tags.map(tag => <Badge key={tag} variant="neutral">{tag}</Badge>)}</div>}</CardBody></Card>
-                        {club && <Card><CardHeader><h2 className="text-2xl font-bold text-gray-900">About the Organizer</h2></CardHeader><CardBody className="text-gray-700 space-y-2"><div><strong>Club:</strong> {club.name}</div></CardBody></Card>}
                         
+                        {club && (
+                            <Card>
+                                <CardHeader><h2 className="text-2xl font-bold text-gray-900">Organizer Information</h2></CardHeader>
+                                <CardBody className="text-gray-700 space-y-3">
+                                    <div><strong className="block text-gray-900">Club Name</strong> {club.name}</div>
+                                    <div><strong className="block text-gray-900">Faculty Advisor</strong> {club.facultyAdvisor}</div>
+                                    {event.presidentPhone && <div><strong className="block text-gray-900">President Contact</strong> <a href={`tel:${event.presidentPhone}`} className="text-indigo-600 hover:underline">{event.presidentPhone}</a></div>}
+                                    {event.vicePresidentPhone && <div><strong className="block text-gray-900">Vice-President Contact</strong> <a href={`tel:${event.vicePresidentPhone}`} className="text-indigo-600 hover:underline">{event.vicePresidentPhone}</a></div>}
+                                </CardBody>
+                            </Card>
+                        )}
+
                         {isCompleted && attended && (
                             <Card>
                                 {/* Feedback section remains the same */}

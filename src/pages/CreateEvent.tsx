@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, MapPin, Users, ImageUp, Tag, Calendar, Clock, Save, DollarSign } from 'lucide-react';
+import { ArrowLeft, MapPin, Users, ImageUp, Tag, Calendar, Clock, Save, DollarSign, Phone } from 'lucide-react';
 import { useEventStore } from '../stores/eventStore';
 import { useAuthStore } from '../stores/authStore';
 import Button from '../components/ui/Button';
@@ -34,6 +34,8 @@ const CreateEvent: React.FC = () => {
         eventType: 'free',
         eventFee: '',
         upiId: '',
+        presidentPhone: '',
+        vicePresidentPhone: '',
     });
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [errors, setErrors] = useState<Record<string, string>>({});
@@ -61,6 +63,8 @@ const CreateEvent: React.FC = () => {
                         eventType: event.eventType || 'free',
                         eventFee: event.eventFee || '',
                         upiId: event.upiId || '',
+                        presidentPhone: event.presidentPhone || '',
+                        vicePresidentPhone: event.vicePresidentPhone || '',
                     });
                 } else {
                     toast.error("Event not found for editing.");
@@ -173,6 +177,8 @@ const CreateEvent: React.FC = () => {
                 eventType: formData.eventType,
                 eventFee: formData.eventType === 'paid' ? formData.eventFee : undefined,
                 upiId: formData.eventType === 'paid' ? formData.upiId : undefined,
+                presidentPhone: formData.presidentPhone || undefined,
+                vicePresidentPhone: formData.vicePresidentPhone || undefined,
             };
 
             if (isEditMode && id) {
@@ -252,6 +258,15 @@ const CreateEvent: React.FC = () => {
                             <Input type="time" label="End Time" name="endTime" value={formData.endTime} onChange={handleChange} error={errors.endTime} required leftIcon={<Clock size={16}/>} />
                         </div>
                     </div>
+                    {user?.role === 'club' && (
+                        <div className="p-6 bg-white rounded-lg border shadow-sm">
+                            <h2 className="text-lg font-semibold text-gray-800 mb-4">Contact Information</h2>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <Input label="President Phone" name="presidentPhone" type="tel" leftIcon={<Phone size={16} />} placeholder="President's contact number" value={formData.presidentPhone} onChange={handleChange} error={errors.presidentPhone} />
+                                <Input label="Vice President Phone" name="vicePresidentPhone" type="tel" leftIcon={<Phone size={16} />} placeholder="Vice President's contact number" value={formData.vicePresidentPhone} onChange={handleChange} error={errors.vicePresidentPhone} />
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Right Column */}

@@ -32,10 +32,11 @@ export interface Event {
   tags: string[];
   createdAt: string;
   updatedAt: string;
-  // --- NEW FIELDS ---
   eventType: 'free' | 'paid';
   eventFee?: string;
   upiId?: string;
+  presidentPhone?: string;
+  vicePresidentPhone?: string;
 }
 
 export interface Club {
@@ -63,7 +64,6 @@ export interface EventRegistration {
   status: 'registered' | 'attended' | 'cancelled';
   registeredAt: string;
   checkedInAt?: string;
-  // --- NEW FIELDS ---
   transactionId?: string;
   transactionImage?: string;
   paymentVerified?: boolean;
