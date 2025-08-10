@@ -222,13 +222,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           name: gUser.displayName,
           email: gUser.email,
           role: 'student',
-          status: 'pending', // <-- fix here
+          status: 'approved', // <-- fix here
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
         await setDoc(doc(db, 'users', gUser.uid), userData);
         set({ user: null, isAuthenticated: false, isLoading: false });
-        toast.success('Registration successful! Awaiting admin approval.');
+        toast.success('Registration successful! Please log in.');
         return false;
       } else {
         userData = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
