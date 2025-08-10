@@ -56,13 +56,6 @@ const EventDetails: React.FC = () => {
     const [transactionImage, setTransactionImage] = useState<File | null>(null);
     const [transactionId, setTransactionId] = useState('');
     const [paymentStatus, setPaymentStatus] = useState<'pending' | 'verified' | 'rejected' | null>(null);
-    const [isMobile, setIsMobile] = useState(false);
-
-    useEffect(() => {
-        const userAgent = typeof window.navigator === "undefined" ? "" : navigator.userAgent;
-        const mobile = Boolean(userAgent.match(/Android|BlackBerry|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop/i));
-        setIsMobile(mobile);
-    }, []);
 
     useEffect(() => {
         const loadEvent = async () => {
@@ -447,15 +440,23 @@ const EventDetails: React.FC = () => {
                                             <form onSubmit={handleStudentRegister} className="space-y-4">
                                                 <h3 className="text-xl font-bold text-gray-800 text-center">Register Now</h3>
                                                 {event.eventType === 'paid' && (
+                                                    // ==========================================================
+                                                    // START OF MODIFIED CODE BLOCK
+                                                    // ==========================================================
                                                     <div className="p-4 bg-indigo-50 rounded-lg text-center">
                                                         <h4 className="font-bold text-indigo-800">Payment Required: ₹{event.eventFee}</h4>
-                                                        {isMobile ? (
-                                                            <a href={upiIntentLink} className="inline-block w-full mt-2"><Button type="button" fullWidth leftIcon={<Smartphone size={16}/>}>Pay with UPI</Button></a>
-                                                        ) : (
-                                                            <div className="mt-2 bg-white p-2 inline-block rounded-lg border"><QRCode value={upiIntentLink} size={160} /></div>
-                                                        )}
-                                                        <p className="text-xs text-gray-500 mt-3">After paying, upload the screenshot and enter the Transaction ID below.</p>
+                                                        <div className="mt-2 bg-white p-2 inline-block rounded-lg border">
+                                                            <QRCode value={upiIntentLink} size={160} />
+                                                        </div>
+                                                        <p className="font-semibold text-gray-800 mt-2">{event.upiId}</p>
+                                                        <p className="text-xs text-gray-500 mt-3">
+                                                            Scan the QR code with your UPI app or copy the UPI ID.
+                                                            After paying, upload the screenshot and enter the Transaction ID below.
+                                                        </p>
                                                     </div>
+                                                    // ==========================================================
+                                                    // END OF MODIFIED CODE BLOCK
+                                                    // ==========================================================
                                                 )}
                                                 <Input label="Reg. No" name="regNo" value={registrationData.regNo} onChange={handleRegChange} required />
                                                 <Input label="Name" name="name" value={registrationData.name} onChange={handleRegChange} required />
