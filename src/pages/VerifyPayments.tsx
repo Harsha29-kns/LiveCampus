@@ -7,14 +7,16 @@ import toast from 'react-hot-toast';
 import { ArrowLeft, CheckCircle, Clock, XCircle } from 'lucide-react';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import Badge from '../components/ui/Badge';
+import { Club } from '../types'; // Import Club type
 
 const VerifyPayments: React.FC = () => {
     const { eventId } = useParams<{ eventId: string }>();
     const navigate = useNavigate();
     const [registrations, setRegistrations] = useState<any[]>([]);
     const [event, setEvent] = useState<any>(null);
+    const [club, setClub] = useState<Club | null>(null); // State for club details
     const [isLoading, setIsLoading] = useState(true);
-    const [actionId, setActionId] = useState<string | null>(null); // For loading state on buttons
+    const [actionId, setActionId] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -23,7 +25,16 @@ const VerifyPayments: React.FC = () => {
             try {
                 const eventDoc = await getDoc(doc(db, 'events', eventId));
                 if (eventDoc.exists()) {
-                    setEvent({ id: eventDoc.id, ...eventDoc.data() });
+                    const eventData = { id: eventDoc.id, ...eventDoc.data() };
+                    setEvent(eventData);
+
+                    // Fetch club details if the event is organized by a club
+                    if (eventData.organizerType === 'club' && eventData.organizerId) {
+                        const clubDoc = await getDoc(doc(db, 'clubs', eventData.organizerId));
+                        if (clubDoc.exists()) {
+                            setClub({ id: clubDoc.id, ...clubDoc.data() } as Club);
+                        }
+                    }
                 } else {
                     toast.error("Event not found.");
                     navigate('/events');
@@ -58,10 +69,15 @@ const VerifyPayments: React.FC = () => {
             const userDoc = await getDoc(doc(db, 'users', registration.userId));
             if (userDoc.exists()) {
                 const student = userDoc.data();
-                await fetch('/api/send-payment-verification', {
+                await fetch('https://live-campus.vercel.app/api/send-payment-verification', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: student.email, name: student.name, eventName: event?.title }),
+                    body: JSON.stringify({
+                        email: student.email,
+                        name: student.name,
+                        eventName: event?.title,
+                        eventId: event?.id // Pass eventId for the link
+                    }),
                 });
                 toast.success('Verification email sent!');
             }
@@ -74,7 +90,7 @@ const VerifyPayments: React.FC = () => {
 
     const handleRejectPayment = async (registration: any) => {
         const rejectionReason = prompt("Please provide a reason for rejection (this will be sent to the student):");
-        if (rejectionReason === null) return; // User cancelled the prompt
+        if (rejectionReason === null) return;
         
         setActionId(registration.id);
         try {
@@ -90,10 +106,16 @@ const VerifyPayments: React.FC = () => {
             const userDoc = await getDoc(doc(db, 'users', registration.userId));
             if (userDoc.exists()) {
                 const student = userDoc.data();
-                await fetch('/api/send-payment-rejection', {
+                await fetch('https://live-campus.vercel.app/api/send-payment-rejection', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: student.email, name: student.name, eventName: event?.title, rejectionReason }),
+                    body: JSON.stringify({
+                        email: student.email,
+                        name: student.name,
+                        eventName: event?.title,
+                        rejectionReason,
+                        clubDetails: club // Pass club details
+                    }),
                 });
                 toast.success('Rejection email sent to student.');
             }
@@ -114,7 +136,6 @@ const VerifyPayments: React.FC = () => {
         return <Badge variant="warning"><Clock size={14} className="mr-1" /> Pending</Badge>;
     };
 
-
     if (isLoading) {
         return <div className="flex justify-center items-center min-h-[60vh]"><LoadingSpinner size="lg" text="Loading Registrations..." /></div>;
     }
@@ -129,7 +150,7 @@ const VerifyPayments: React.FC = () => {
             
             <div className="bg-white rounded-lg border shadow-sm">
                 <div className="divide-y divide-gray-200">
-                    {registrations.length > 0 ? registrations.map(reg => (
+                    {registrations.filter(r => r.transactionId).length > 0 ? registrations.filter(r => r.transactionId).map(reg => (
                         <div key={reg.id} className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                             <div>
                                 <p className="font-semibold text-gray-800">{reg.name}</p>
