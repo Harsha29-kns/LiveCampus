@@ -1,20 +1,22 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebaseConfig';
-import { collection, query, where, getDocs, updateDoc, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, updateDoc, doc, getDoc, deleteDoc } from 'firebase/firestore'; // Import deleteDoc
+import { useEventStore } from '../stores/eventStore'; // Import the store
 import Button from '../components/ui/Button';
 import toast from 'react-hot-toast';
 import { ArrowLeft, CheckCircle, Clock, XCircle } from 'lucide-react';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import Badge from '../components/ui/Badge';
-import { Club } from '../types'; // Import Club type
+import { Club } from '../types';
 
 const VerifyPayments: React.FC = () => {
     const { eventId } = useParams<{ eventId: string }>();
     const navigate = useNavigate();
+    const { cancelRegistration } = useEventStore(); // Get the cancelRegistration function
     const [registrations, setRegistrations] = useState<any[]>([]);
     const [event, setEvent] = useState<any>(null);
-    const [club, setClub] = useState<Club | null>(null); // State for club details
+    const [club, setClub] = useState<Club | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [actionId, setActionId] = useState<string | null>(null);
 
@@ -28,7 +30,6 @@ const VerifyPayments: React.FC = () => {
                     const eventData = { id: eventDoc.id, ...eventDoc.data() };
                     setEvent(eventData);
 
-                    // Fetch club details if the event is organized by a club
                     if (eventData.organizerType === 'club' && eventData.organizerId) {
                         const clubDoc = await getDoc(doc(db, 'clubs', eventData.organizerId));
                         if (clubDoc.exists()) {
@@ -76,7 +77,7 @@ const VerifyPayments: React.FC = () => {
                         email: student.email,
                         name: student.name,
                         eventName: event?.title,
-                        eventId: event?.id // Pass eventId for the link
+                        eventId: event?.id
                     }),
                 });
                 toast.success('Verification email sent!');
@@ -94,15 +95,7 @@ const VerifyPayments: React.FC = () => {
         
         setActionId(registration.id);
         try {
-            await updateDoc(doc(db, 'eventRegistrations', registration.id), {
-                paymentVerified: 'rejected'
-            });
-            
-            setRegistrations(regs =>
-                regs.map(r => r.id === registration.id ? { ...r, paymentVerified: 'rejected' } : r)
-            );
-            toast.error('Payment rejected.');
-
+            // First, send the rejection email
             const userDoc = await getDoc(doc(db, 'users', registration.userId));
             if (userDoc.exists()) {
                 const student = userDoc.data();
@@ -114,12 +107,23 @@ const VerifyPayments: React.FC = () => {
                         name: student.name,
                         eventName: event?.title,
                         rejectionReason,
-                        clubDetails: club // Pass club details
+                        clubDetails: club
                     }),
                 });
                 toast.success('Rejection email sent to student.');
             }
+
+            // Now, cancel the registration to remove them and update the count
+            const success = await cancelRegistration(eventId!, registration.userId);
+            if (success) {
+                setRegistrations(regs => regs.filter(r => r.id !== registration.id));
+                toast.error('Payment rejected and registration removed.');
+            } else {
+                 throw new Error("Failed to cancel registration in store.");
+            }
+
         } catch (error) {
+            console.error(error);
             toast.error('An error occurred during rejection.');
         } finally {
             setActionId(null);
@@ -130,6 +134,7 @@ const VerifyPayments: React.FC = () => {
         if (reg.paymentVerified === true) {
             return <Badge variant="success"><CheckCircle size={14} className="mr-1" /> Verified</Badge>;
         }
+        // This case will no longer appear after rejection, but kept for safety
         if (reg.paymentVerified === 'rejected') {
             return <Badge variant="error"><XCircle size={14} className="mr-1" /> Rejected</Badge>;
         }
@@ -162,7 +167,7 @@ const VerifyPayments: React.FC = () => {
                             </div>
                             <div className="flex-shrink-0 flex items-center gap-2">
                                 {getStatusComponent(reg)}
-                                {reg.paymentVerified !== true && reg.paymentVerified !== 'rejected' && (
+                                {reg.paymentVerified !== true && (
                                     <>
                                         <Button size="sm" onClick={() => handleVerifyPayment(reg)} isLoading={actionId === reg.id} disabled={!!actionId}>
                                             Verify
@@ -175,7 +180,7 @@ const VerifyPayments: React.FC = () => {
                             </div>
                         </div>
                     )) : (
-                        <p className="text-center text-gray-500 p-8">No paid registrations found for this event.</p>
+                        <p className="text-center text-gray-500 p-8">No pending payments found for this event.</p>
                     )}
                 </div>
             </div>
