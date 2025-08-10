@@ -4,8 +4,9 @@ import { db } from '../firebaseConfig';
 import { collection, query, where, getDocs, updateDoc, doc, getDoc } from 'firebase/firestore';
 import Button from '../components/ui/Button';
 import toast from 'react-hot-toast';
-import { ArrowLeft, CheckCircle, Clock } from 'lucide-react';
+import { ArrowLeft, CheckCircle, Clock, XCircle } from 'lucide-react';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
+import Badge from '../components/ui/Badge';
 
 const VerifyPayments: React.FC = () => {
     const { eventId } = useParams<{ eventId: string }>();
@@ -13,6 +14,7 @@ const VerifyPayments: React.FC = () => {
     const [registrations, setRegistrations] = useState<any[]>([]);
     const [event, setEvent] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [actionId, setActionId] = useState<string | null>(null); // For loading state on buttons
 
     useEffect(() => {
         const fetchData = async () => {
@@ -41,19 +43,77 @@ const VerifyPayments: React.FC = () => {
         fetchData();
     }, [eventId, navigate]);
 
-    const handleVerifyPayment = async (regId: string) => {
+    const handleVerifyPayment = async (registration: any) => {
+        setActionId(registration.id);
         try {
-            await updateDoc(doc(db, 'eventRegistrations', regId), {
+            await updateDoc(doc(db, 'eventRegistrations', registration.id), {
                 paymentVerified: true
             });
+            
             setRegistrations(regs =>
-                regs.map(r => r.id === regId ? { ...r, paymentVerified: true } : r)
+                regs.map(r => r.id === registration.id ? { ...r, paymentVerified: true } : r)
             );
             toast.success('Payment verified!');
+
+            const userDoc = await getDoc(doc(db, 'users', registration.userId));
+            if (userDoc.exists()) {
+                const student = userDoc.data();
+                await fetch('/api/send-payment-verification', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: student.email, name: student.name, eventName: event?.title }),
+                });
+                toast.success('Verification email sent!');
+            }
         } catch (error) {
-            toast.error('Failed to verify payment.');
+            toast.error('An error occurred during verification.');
+        } finally {
+            setActionId(null);
         }
     };
+
+    const handleRejectPayment = async (registration: any) => {
+        const rejectionReason = prompt("Please provide a reason for rejection (this will be sent to the student):");
+        if (rejectionReason === null) return; // User cancelled the prompt
+        
+        setActionId(registration.id);
+        try {
+            await updateDoc(doc(db, 'eventRegistrations', registration.id), {
+                paymentVerified: 'rejected'
+            });
+            
+            setRegistrations(regs =>
+                regs.map(r => r.id === registration.id ? { ...r, paymentVerified: 'rejected' } : r)
+            );
+            toast.error('Payment rejected.');
+
+            const userDoc = await getDoc(doc(db, 'users', registration.userId));
+            if (userDoc.exists()) {
+                const student = userDoc.data();
+                await fetch('/api/send-payment-rejection', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: student.email, name: student.name, eventName: event?.title, rejectionReason }),
+                });
+                toast.success('Rejection email sent to student.');
+            }
+        } catch (error) {
+            toast.error('An error occurred during rejection.');
+        } finally {
+            setActionId(null);
+        }
+    };
+    
+    const getStatusComponent = (reg: any) => {
+        if (reg.paymentVerified === true) {
+            return <Badge variant="success"><CheckCircle size={14} className="mr-1" /> Verified</Badge>;
+        }
+        if (reg.paymentVerified === 'rejected') {
+            return <Badge variant="error"><XCircle size={14} className="mr-1" /> Rejected</Badge>;
+        }
+        return <Badge variant="warning"><Clock size={14} className="mr-1" /> Pending</Badge>;
+    };
+
 
     if (isLoading) {
         return <div className="flex justify-center items-center min-h-[60vh]"><LoadingSpinner size="lg" text="Loading Registrations..." /></div>;
@@ -79,20 +139,22 @@ const VerifyPayments: React.FC = () => {
                                     View Transaction Proof
                                 </a>
                             </div>
-                            <div className="flex-shrink-0">
-                                {reg.paymentVerified ? (
-                                    <span className="flex items-center text-green-600 font-semibold">
-                                        <CheckCircle size={18} className="mr-1" /> Verified
-                                    </span>
-                                ) : (
-                                    <Button size="sm" onClick={() => handleVerifyPayment(reg.id)}>
-                                        Verify
-                                    </Button>
+                            <div className="flex-shrink-0 flex items-center gap-2">
+                                {getStatusComponent(reg)}
+                                {reg.paymentVerified !== true && reg.paymentVerified !== 'rejected' && (
+                                    <>
+                                        <Button size="sm" onClick={() => handleVerifyPayment(reg)} isLoading={actionId === reg.id} disabled={!!actionId}>
+                                            Verify
+                                        </Button>
+                                        <Button size="sm" variant="danger" onClick={() => handleRejectPayment(reg)} isLoading={actionId === reg.id} disabled={!!actionId}>
+                                            Reject
+                                        </Button>
+                                    </>
                                 )}
                             </div>
                         </div>
                     )) : (
-                        <p className="text-center text-gray-500 p-8">No registrations found for this event.</p>
+                        <p className="text-center text-gray-500 p-8">No paid registrations found for this event.</p>
                     )}
                 </div>
             </div>

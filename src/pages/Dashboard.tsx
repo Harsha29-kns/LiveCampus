@@ -15,16 +15,19 @@ import LoadingSpinner from '../components/ui/LoadingSpinner'; // Import the load
 
 const Dashboard: React.FC = () => {
   const { user, setUser } = useAuthStore();
-  const { events } = useEventStore();
-  const { clubs, fetchClubs, isLoading } = useClubStore(); // Get isLoading from the store
+  const { events, fetchEvents, isLoading: isEventsLoading } = useEventStore(); // Renamed to avoid conflict
+  const { clubs, fetchClubs, isLoading: isClubsLoading } = useClubStore(); // Renamed to avoid conflict
   const [registeredEvents, setRegisteredEvents] = useState<Event[]>([]);
   const [showProfileForm, setShowProfileForm] = useState(false);
   const navigate = useNavigate();
 
+  // A combined loading state
+  const isDataLoading = isEventsLoading || isClubsLoading;
+
   useEffect(() => {
-    // The isLoading state from the store will manage the loading UI
     fetchClubs();
-  }, [fetchClubs]);
+    fetchEvents();
+  }, [fetchClubs, fetchEvents]);
 
   useEffect(() => {
     const loadRegisteredEvents = async () => {
@@ -110,7 +113,7 @@ const Dashboard: React.FC = () => {
     );
 
   // Display a full-page loading spinner while initial data is being fetched.
-  if (isLoading) {
+  if (isDataLoading) {
     return (
       <div className="flex items-center justify-center h-full min-h-[60vh]">
         <LoadingSpinner size="lg" text="Loading dashboard..." />

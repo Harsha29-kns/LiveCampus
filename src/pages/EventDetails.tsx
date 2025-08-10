@@ -41,10 +41,9 @@ const EventDetails: React.FC = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [isRegistered, setIsRegistered] = useState(false);
     const [isActionLoading, setIsActionLoading] = useState(false);
-    const [registrationData, setRegistrationData] = useState({
+    const [registrationData, setRegistrationData] = useState<any>({ // Set a more specific type if possible
         regNo: '', name: user?.name || '', branch: '', department: user?.department || '', phone: '',
     });
-    const [regErrors, setRegErrors] = useState<Record<string, string>>({});
     const [club, setClub] = useState<any>(null);
     const qrRef = useRef<HTMLDivElement>(null);
     const [attended, setAttended] = useState(false);
@@ -58,7 +57,7 @@ const EventDetails: React.FC = () => {
     const [hasGivenFeedback, setHasGivenFeedback] = useState(false);
     const [transactionImage, setTransactionImage] = useState<File | null>(null);
     const [transactionId, setTransactionId] = useState('');
-    const [paymentVerified, setPaymentVerified] = useState(false);
+    const [paymentStatus, setPaymentStatus] = useState<'pending' | 'verified' | 'rejected' | null>(null);
     const [isMobile, setIsMobile] = useState(false);
 
     useEffect(() => {
@@ -79,7 +78,7 @@ const EventDetails: React.FC = () => {
 
                 if (fetchedEvent) {
                     setEvent(fetchedEvent);
-                    if (user && fetchedEvent.feedback?.some(f => f.userId === user.id)) {
+                    if (user && fetchedEvent.feedback?.some((f: any) => f.userId === user.id)) {
                         setHasGivenFeedback(true);
                     }
                 } else {
@@ -105,9 +104,18 @@ const EventDetails: React.FC = () => {
                 const regData = snapshot.docs[0].data();
                 setRegistrationData(regData);
                 setAttended(regData.status === 'attended');
+                // **FIX**: Set the payment status for the registered user
                 if (event.eventType === 'paid') {
-                    setPaymentVerified(regData.paymentVerified === true);
+                    if (regData.paymentVerified === true) {
+                        setPaymentStatus('verified');
+                    } else if (regData.paymentVerified === 'rejected') {
+                        setPaymentStatus('rejected');
+                    } else {
+                        setPaymentStatus('pending');
+                    }
                 }
+            } else {
+                setPaymentStatus(null);
             }
         };
         checkRegistration();
@@ -147,6 +155,7 @@ const EventDetails: React.FC = () => {
 
     const handleDelete = async () => {
         if (!id) return;
+        if (!window.confirm("Are you sure you want to delete this event? This action cannot be undone.")) return;
         setIsActionLoading(true);
         const success = await deleteEvent(id);
         if (success) {
@@ -168,19 +177,22 @@ const EventDetails: React.FC = () => {
     };
 
     const handleShare = () => {
-        if (navigator.share) {
+        if (navigator.share && event) {
             navigator.share({ title: event.title, text: event.description, url: window.location.href });
         } else {
             navigator.clipboard.writeText(window.location.href).then(() => toast.success('Link copied!'));
         }
     };
+    
     const handleRegChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setRegistrationData(prev => ({ ...prev, [e.target.name]: e.target.value }));
     };
+    
     const validateReg = () => { return true; };
+
     const handleStudentRegister = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!validateReg() || !id || !user) return;
+        if (!validateReg() || !id || !user || !event) return;
         setIsActionLoading(true);
 
         if (event.eventType === 'paid' && (!transactionImage || !transactionId.trim())) {
@@ -195,7 +207,7 @@ const EventDetails: React.FC = () => {
                 toast.loading('Uploading transaction proof...');
                 const formData = new FormData();
                 formData.append('file', transactionImage);
-                formData.append('upload_preset', 'transaction-proofs');
+                formData.append('upload_preset', 'transaction-proofs'); // Ensure this preset exists in Cloudinary
                 const res = await fetch('https://api.cloudinary.com/v1_1/ductmfmke/image/upload', {
                     method: 'POST',
                     body: formData,
@@ -206,17 +218,25 @@ const EventDetails: React.FC = () => {
                 toast.dismiss();
             }
 
-            const registrationPayload = {
+            const registrationPayload: any = {
                 ...registrationData,
-                transactionId: event.eventType === 'paid' ? transactionId : undefined,
-                transactionImage: event.eventType === 'paid' ? transactionImageUrl : undefined,
-                paymentVerified: false,
+                userId: user.id,
+                eventId: id,
             };
+
+            if (event.eventType === 'paid') {
+                registrationPayload.transactionId = transactionId;
+                registrationPayload.transactionImage = transactionImageUrl;
+                registrationPayload.paymentVerified = false;
+            }
 
             const success = await registerForEvent(id, user.id, registrationPayload);
             if (success) {
                 setIsRegistered(true);
-                toast.success(event.eventType === 'paid' ? 'Registered! Awaiting payment verification.' : 'Successfully registered!');
+                if (event.eventType === 'paid') {
+                    setPaymentStatus('pending'); // Instantly update UI
+                }
+                toast.success('Registration submitted!');
                 const updatedEvent = getEventById(id);
                 if (updatedEvent) setEvent(updatedEvent);
             }
@@ -236,11 +256,15 @@ const EventDetails: React.FC = () => {
 
     const handleDownloadQR = async () => {
         if (!qrRef.current) return;
-        const dataUrl = await toPng(qrRef.current);
-        const link = document.createElement('a');
-        link.download = `event-qr-${event.id}.png`;
-        link.href = dataUrl;
-        link.click();
+        try {
+            const dataUrl = await toPng(qrRef.current);
+            const link = document.createElement('a');
+            link.download = `event-qr-${event?.id}.png`;
+            link.href = dataUrl;
+            link.click();
+        } catch (error) {
+            toast.error("Failed to download QR code.");
+        }
     };
 
     const handleFeedbackSubmit = async () => {
@@ -250,7 +274,7 @@ const EventDetails: React.FC = () => {
         }
         if (!id || !user) return;
         setIsActionLoading(true);
-        const success = await submitFeedback(id, user.id, feedback);
+        const success = await submitFeedback(id, user.id, feedback as any);
         if (success) {
             setHasGivenFeedback(true);
         }
@@ -280,7 +304,7 @@ const EventDetails: React.FC = () => {
 
 
     const isAdmin = user?.role === 'admin';
-    const isOrganizer = user?.id === event.createdBy || isAdmin || (user?.role === event.organizerType && user?.id === event.organizerId);
+    const isOrganizer = user?.id === event.createdBy || isAdmin || (user?.role === event.organizerType && (user.clubId ? user.clubId === event.organizerId : user.id === event.organizerId));
     const isPending = event.status === 'pending';
     const isApproved = event.status === 'approved';
     const isRejected = event.status === 'rejected';
@@ -356,33 +380,39 @@ const EventDetails: React.FC = () => {
 
                                 {isApproved && !isCompleted && !isCancelled ? (
                                     isRegistered ? (
-                                        event.eventType === 'paid' ? (
-                                            paymentVerified ? (
+                                        <>
+                                            {paymentStatus === 'verified' && (
                                                 <div className="text-center space-y-4">
                                                     <div className="p-3 bg-green-50 text-green-700 rounded-lg font-semibold"><CheckCircle className="inline-block w-5 h-5 mr-2" /> Payment Verified!</div>
                                                     <div className="flex flex-col items-center pt-2"><p className="mb-3 text-sm text-gray-500">Show this QR at check-in:</p><div ref={qrRef} className="bg-white p-2 rounded-lg border"><QRCode value={JSON.stringify({ eventId: event.id, userId: user?.id })} size={180} level="H" /></div><Button className="mt-3" size="sm" variant="outline" onClick={handleDownloadQR}>Download QR</Button></div>
                                                 </div>
-                                            ) : (
-                                                <div className="p-4 bg-yellow-100 text-yellow-800 rounded-lg text-center font-semibold">
-                                                    <p>Your payment is pending verification. The attendance QR code will be available here once approved.</p>
+                                            )}
+                                            {paymentStatus === 'pending' && (
+                                                <div className="p-4 bg-yellow-100 text-yellow-800 rounded-lg text-center">
+                                                    <p className="font-semibold">Your payment is under verification.</p>
+                                                    <p className="text-sm mt-1">You will get an email from the club once it's approved. After that, you can download your QR code here.</p>
                                                 </div>
-                                            )
-                                        ) : (
-                                            <div className="text-center space-y-4">
-                                                <div className="p-3 bg-green-50 text-green-700 rounded-lg font-semibold"><PartyPopper className="inline-block w-5 h-5 mr-2" /> You're registered!</div>
-                                                <div className="flex flex-col items-center pt-2"><p className="mb-3 text-sm text-gray-500">Show this QR at check-in:</p><div ref={qrRef} className="bg-white p-2 rounded-lg border"><QRCode value={JSON.stringify({ eventId: event.id, userId: user?.id })} size={180} level="H" /></div><Button className="mt-3" size="sm" variant="outline" onClick={handleDownloadQR}>Download QR</Button></div>
-                                                <Button variant="outline" fullWidth onClick={handleCancelRegistration} isLoading={isActionLoading}>Cancel Registration</Button>
-                                            </div>
-                                        )
+                                            )}
+                                            {paymentStatus === 'rejected' && (
+                                                <div className="p-4 bg-red-100 text-red-800 rounded-lg text-center font-semibold">
+                                                    <p>Your payment was rejected. Please contact the organizer for details.</p>
+                                                </div>
+                                            )}
+                                            {event.eventType === 'free' && (
+                                                <div className="text-center space-y-4">
+                                                    <div className="p-3 bg-green-50 text-green-700 rounded-lg font-semibold"><PartyPopper className="inline-block w-5 h-5 mr-2" /> You're registered!</div>
+                                                    <div className="flex flex-col items-center pt-2"><p className="mb-3 text-sm text-gray-500">Show this QR at check-in:</p><div ref={qrRef} className="bg-white p-2 rounded-lg border"><QRCode value={JSON.stringify({ eventId: event.id, userId: user?.id })} size={180} level="H" /></div><Button className="mt-3" size="sm" variant="outline" onClick={handleDownloadQR}>Download QR</Button></div>
+                                                </div>
+                                            )}
+                                            <Button variant="outline" fullWidth onClick={handleCancelRegistration} isLoading={isActionLoading}>Cancel Registration</Button>
+                                        </>
                                     ) : (
                                         user?.role === 'student' ? (
                                             <form onSubmit={handleStudentRegister} className="space-y-4">
                                                 <h3 className="text-xl font-bold text-gray-800 text-center">Register Now</h3>
-                                                
                                                 {event.eventType === 'paid' && (
                                                     <div className="p-4 bg-indigo-50 rounded-lg text-center">
                                                         <h4 className="font-bold text-indigo-800">Payment Required: ₹{event.eventFee}</h4>
-                                                        
                                                         {isMobile ? (
                                                             <>
                                                                 <p className="text-sm text-indigo-700 mb-3">Click below to pay with your UPI app.</p>
@@ -398,16 +428,13 @@ const EventDetails: React.FC = () => {
                                                                 </div>
                                                             </>
                                                         )}
-
                                                         <p className="text-xs text-gray-500 mt-3">After paying, upload the screenshot and enter the Transaction ID below.</p>
                                                     </div>
                                                 )}
-
                                                 <Input label="Reg. No" name="regNo" value={registrationData.regNo} onChange={handleRegChange} required />
                                                 <Input label="Name" name="name" value={registrationData.name} onChange={handleRegChange} required />
                                                 <Input label="Branch" name="branch" value={registrationData.branch} onChange={handleRegChange} required />
                                                 <Input label="Phone" name="phone" value={registrationData.phone} onChange={handleRegChange} required />
-
                                                 {event.eventType === 'paid' && (
                                                     <>
                                                         <Input label="UPI Transaction ID" name="transactionId" value={transactionId} onChange={(e) => setTransactionId(e.target.value)} required />
@@ -417,7 +444,6 @@ const EventDetails: React.FC = () => {
                                                         </div>
                                                     </>
                                                 )}
-                                                
                                                 <Button type="submit" fullWidth isLoading={isActionLoading}>
                                                     {event.eventType === 'paid' ? 'Submit Proof & Register' : 'Confirm Registration'}
                                                 </Button>
@@ -439,7 +465,6 @@ const EventDetails: React.FC = () => {
                                             {event.eventType === 'paid' && (
                                                 <Button fullWidth variant="outline" onClick={() => navigate(`/events/${event.id}/verify-payments`)} leftIcon={<ClipboardList size={16}/>}>Verify Payments</Button>
                                             )}
-                                            {/* --- NEW BUTTON ADDED HERE --- */}
                                             <Button fullWidth variant="outline" onClick={() => navigate(`/events/${event.id}/marks`)} leftIcon={<ClipboardList size={16}/>}>Enter Marks</Button>
                                         </div>
                                     </div>
