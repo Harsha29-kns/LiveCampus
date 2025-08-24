@@ -1,21 +1,27 @@
-import { initializeApp, cert } from 'firebase-admin/app';
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import nodemailer from 'nodemailer';
 import { createCanvas, loadImage, registerFont } from 'canvas';
 import QRCode from 'qrcode';
 
-// Initialize Firebase Admin SDK
-// Note: You'll need to set up service account credentials in your Vercel environment variables
+// --- Initialize Firebase Admin SDK ---
+// Check if the environment variable exists before parsing
+if (!process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+    throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY is not set in environment variables.');
+}
+
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
 
-if (!initializeApp.length) {
+// Use getApps() to safely initialize the app, preventing re-initialization
+if (getApps().length === 0) {
     initializeApp({
         credential: cert(serviceAccount),
         storageBucket: `${process.env.VITE_FIREBASE_PROJECT_ID}.appspot.com`
     });
 }
 
+// You can now safely call Firebase services
 const db = getFirestore();
 const bucket = getStorage().bucket();
 
