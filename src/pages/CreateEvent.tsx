@@ -40,12 +40,11 @@ const CreateEvent: React.FC = () => {
         presidentPhone: '',
         vicePresidentPhone: '',
         certificateTemplateUrl: '',
+        certificateLayout: null as CertificateLayout | null, // Layout is now part of the main form data
     });
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [certificateFile, setCertificateFile] = useState<File | null>(null);
     const [errors, setErrors] = useState<Record<string, string>>({});
-
-    const [certificateLayout, setCertificateLayout] = useState<CertificateLayout | null>(null);
     const [isLayoutModalOpen, setIsLayoutModalOpen] = useState(false);
 
     useEffect(() => {
@@ -76,10 +75,8 @@ const CreateEvent: React.FC = () => {
                         presidentPhone: event.presidentPhone || '',
                         vicePresidentPhone: event.vicePresidentPhone || '',
                         certificateTemplateUrl: event.certificateTemplateUrl || '',
+                        certificateLayout: event.certificateLayout || null,
                     });
-                    if (event.certificateLayout) {
-                        setCertificateLayout(event.certificateLayout);
-                    }
                 } else {
                     toast.error("Event not found for editing.");
                     navigate('/events');
@@ -116,7 +113,7 @@ const CreateEvent: React.FC = () => {
     };
 
     const handleSaveLayout = (layout: CertificateLayout) => {
-        setCertificateLayout(layout);
+        setFormData(prev => ({ ...prev, certificateLayout: layout }));
         setIsLayoutModalOpen(false);
         toast.success('Certificate layout saved!');
     };
@@ -223,7 +220,7 @@ const CreateEvent: React.FC = () => {
                 presidentPhone: formData.presidentPhone || undefined,
                 vicePresidentPhone: formData.vicePresidentPhone || undefined,
                 certificateTemplateUrl: certificateUrl || undefined,
-                certificateLayout: certificateLayout || undefined,
+                certificateLayout: formData.certificateLayout || undefined,
             };
 
             if (isEditMode && id) {
@@ -419,7 +416,7 @@ const CreateEvent: React.FC = () => {
                 isOpen={isLayoutModalOpen}
                 onClose={() => setIsLayoutModalOpen(false)}
                 templateUrl={certificateFile ? URL.createObjectURL(certificateFile) : formData.certificateTemplateUrl}
-                initialLayout={certificateLayout}
+                initialLayout={formData.certificateLayout}
                 onSave={handleSaveLayout}
             />
         </form>
