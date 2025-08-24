@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, MapPin, Users, ImageUp, Tag, Calendar, Clock, Save, DollarSign, Phone } from 'lucide-react';
+import { ArrowLeft, MapPin, Users, ImageUp, Tag, Calendar, Clock, Save, DollarSign, Phone, Award } from 'lucide-react';
 import { useEventStore } from '../stores/eventStore';
 import { useAuthStore } from '../stores/authStore';
 import Button from '../components/ui/Button';
@@ -28,7 +28,7 @@ const CreateEvent: React.FC = () => {
         startTime: '',
         endDate: '',
         endTime: '',
-        registrationStartDate: '', // New state for start
+        registrationStartDate: '',
         registrationDeadline: '',
         capacity: '',
         image: '',
@@ -38,8 +38,10 @@ const CreateEvent: React.FC = () => {
         upiId: '',
         presidentPhone: '',
         vicePresidentPhone: '',
+        certificateTemplateUrl: '', // New field for the template URL
     });
     const [imageFile, setImageFile] = useState<File | null>(null);
+    const [certificateFile, setCertificateFile] = useState<File | null>(null); // New state for the certificate file
     const [errors, setErrors] = useState<Record<string, string>>({});
 
     useEffect(() => {
@@ -69,6 +71,7 @@ const CreateEvent: React.FC = () => {
                         upiId: event.upiId || '',
                         presidentPhone: event.presidentPhone || '',
                         vicePresidentPhone: event.vicePresidentPhone || '',
+                        certificateTemplateUrl: event.certificateTemplateUrl || '', // Load existing template
                     });
                 } else {
                     toast.error("Event not found for editing.");
@@ -80,7 +83,6 @@ const CreateEvent: React.FC = () => {
 
         loadEventData();
     }, [isEditMode, id, getEventById, navigate, events, fetchEvents]);
-
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -100,11 +102,17 @@ const CreateEvent: React.FC = () => {
         }
     };
 
+    const handleCertificateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            setCertificateFile(e.target.files[0]);
+        }
+    };
 
-    const uploadToCloudinary = async (file: File) => {
+
+    const uploadToCloudinary = async (file: File, preset: string) => {
         const formData = new FormData();
         formData.append('file', file);
-        formData.append('upload_preset', 'event-images');
+        formData.append('upload_preset', preset);
         const res = await fetch('https://api.cloudinary.com/v1_1/ductmfmke/image/upload', {
             method: 'POST',
             body: formData,
@@ -175,8 +183,15 @@ const CreateEvent: React.FC = () => {
         try {
             let imageUrl = formData.image || '';
             if (imageFile) {
-                toast.loading('Uploading image...');
-                imageUrl = await uploadToCloudinary(imageFile);
+                toast.loading('Uploading event image...');
+                imageUrl = await uploadToCloudinary(imageFile, 'event-images');
+                toast.dismiss();
+            }
+
+            let certificateUrl = formData.certificateTemplateUrl || '';
+            if (certificateFile) {
+                toast.loading('Uploading certificate template...');
+                certificateUrl = await uploadToCloudinary(certificateFile, 'certificate-templates');
                 toast.dismiss();
             }
 
@@ -196,6 +211,7 @@ const CreateEvent: React.FC = () => {
                 upiId: formData.eventType === 'paid' ? formData.upiId : undefined,
                 presidentPhone: formData.presidentPhone || undefined,
                 vicePresidentPhone: formData.vicePresidentPhone || undefined,
+                certificateTemplateUrl: certificateUrl || undefined,
             };
 
             if (isEditMode && id) {
@@ -316,6 +332,22 @@ const CreateEvent: React.FC = () => {
                                 </>
                             )}
                             <input id="image-upload" type="file" accept="image/*" onChange={handleImageChange} className="absolute inset-0 w-full h-full opacity-0" />
+                        </label>
+                    </div>
+
+                    <div className="p-6 bg-white rounded-lg border shadow-sm">
+                        <h2 className="text-lg font-semibold text-gray-800 mb-4">Certificate Template (Optional)</h2>
+                        <label htmlFor="certificate-upload" className="relative cursor-pointer bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg p-6 flex flex-col items-center justify-center text-center hover:border-indigo-500 transition-colors">
+                            {(certificateFile || formData.certificateTemplateUrl) ? (
+                                <img src={certificateFile ? URL.createObjectURL(certificateFile) : formData.certificateTemplateUrl} alt="Certificate Preview" className="h-32 w-full rounded-md object-cover" />
+                            ) : (
+                                <>
+                                    <Award className="h-10 w-10 text-gray-400 mb-2" />
+                                    <span className="text-sm font-medium text-indigo-600">Upload Template</span>
+                                    <span className="text-xs text-gray-500 mt-1">PNG or JPG recommended</span>
+                                </>
+                            )}
+                            <input id="certificate-upload" type="file" accept="image/png, image/jpeg" onChange={handleCertificateChange} className="absolute inset-0 w-full h-full opacity-0" />
                         </label>
                     </div>
                     

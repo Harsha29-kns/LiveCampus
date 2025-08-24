@@ -7,7 +7,8 @@ import Button from '../components/ui/Button';
 import toast from 'react-hot-toast';
 import Input from '../components/ui/Input';
 import Badge from '../components/ui/Badge';
-import { UserCheck, UserX, Users, QrCode, Search, ArrowLeft, VideoOff } from 'lucide-react';
+import { UserCheck, UserX, Users, QrCode, Search, ArrowLeft, VideoOff, Award } from 'lucide-react';
+import { isPast, parseISO } from 'date-fns';
 
 const ToggleSwitch = ({ checked, onChange }: { checked: boolean; onChange: (checked: boolean) => void }) => (
   <label className="relative inline-flex items-center cursor-pointer">
@@ -26,6 +27,7 @@ const EventAttendance: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | undefined>(undefined);
+  const [isGeneratingCerts, setIsGeneratingCerts] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -143,6 +145,42 @@ const EventAttendance: React.FC = () => {
     }
   };
 
+  const handleGenerateCertificates = async () => {
+    setIsGeneratingCerts(true);
+    toast.loading('Generating and sending certificates... This may take a moment.');
+
+    try {
+        const attendees = registrations.filter(r => r.status === 'attended');
+        if (attendees.length === 0) {
+            toast.error("No attendees to generate certificates for.");
+            return;
+        }
+
+        // This would be a call to our new serverless function
+        const response = await fetch('/api/generate-certificates', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                eventId,
+                attendees,
+            }),
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to generate certificates.');
+        }
+
+        toast.dismiss();
+        toast.success('Certificates have been successfully generated and sent to attendees!');
+    } catch (error) {
+        toast.dismiss();
+        toast.error("An error occurred while generating certificates.");
+        console.error(error);
+    } finally {
+        setIsGeneratingCerts(false);
+    }
+  };
+
   const filteredRegistrations = registrations.filter(reg =>
     reg.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     reg.regNo?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -151,6 +189,8 @@ const EventAttendance: React.FC = () => {
   const presentCount = registrations.filter(r => r.status === 'attended').length;
   const totalCount = registrations.length;
   const absentCount = totalCount - presentCount;
+  const eventHasEnded = event ? isPast(parseISO(event.endDate)) : false;
+
 
   if (isLoading) {
     return <div className="text-center p-12">Loading Attendance Data...</div>;
@@ -176,9 +216,22 @@ const EventAttendance: React.FC = () => {
             Manage attendee check-ins manually or with the QR scanner.
           </p>
         </div>
-        <Button onClick={() => setShowScanner(true)} leftIcon={<QrCode size={18} />}>
-          Scan QR Code
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-2">
+            <Button onClick={() => setShowScanner(true)} leftIcon={<QrCode size={18} />}>
+            Scan QR Code
+            </Button>
+            {event?.certificateTemplateUrl && (
+                <Button 
+                    onClick={handleGenerateCertificates} 
+                    leftIcon={<Award size={18} />}
+                    isLoading={isGeneratingCerts}
+                    disabled={!eventHasEnded || isGeneratingCerts}
+                    title={!eventHasEnded ? "You can generate certificates after the event has ended." : "Generate and email certificates to all attendees."}
+                >
+                    Generate Certificates
+                </Button>
+            )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

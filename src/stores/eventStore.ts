@@ -61,6 +61,7 @@ export const useEventStore = create<EventState>((set, get) => ({
     try {
         const cleanEventData = Object.fromEntries(Object.entries(eventData).filter(([, value]) => value !== undefined));
         
+        // The `cleanEventData` object will now include `certificateTemplateUrl` if it was provided
         const docRef = await addDoc(collection(db, 'events'), {
             ...cleanEventData,
             registeredCount: 0,
@@ -180,14 +181,15 @@ export const useEventStore = create<EventState>((set, get) => ({
           updatedAt: new Date().toISOString(),
       };
       
-      delete dataToUpdate.organizerId;
-      delete dataToUpdate.organizerName;
-      delete dataToUpdate.organizerType;
-      delete dataToUpdate.createdBy;
+      delete (dataToUpdate as Partial<Event>).organizerId;
+      delete (dataToUpdate as Partial<Event>).organizerName;
+      delete (dataToUpdate as Partial<Event>).organizerType;
+      delete (dataToUpdate as Partial<Event>).createdBy;
 
       
       const cleanDataToUpdate = Object.fromEntries(Object.entries(dataToUpdate).filter(([, value]) => value !== undefined));
-
+      
+      // The `cleanDataToUpdate` object will now include `certificateTemplateUrl` if it was provided
       await updateDoc(doc(db, 'events', id), cleanDataToUpdate);
       toast.success('Event updated!');
       set({ isLoading: false });
@@ -335,7 +337,7 @@ export const useEventStore = create<EventState>((set, get) => ({
 
             const eventData = eventDoc.data() as Event;
             const newFeedback = { userId, ...feedback, submittedAt: new Date().toISOString() };
-            const updatedFeedback = [...(eventData.feedback || []), newFeedback];
+            const updatedFeedback = [...((eventData as any).feedback || []), newFeedback];
 
             transaction.update(eventRef, { feedback: updatedFeedback });
 

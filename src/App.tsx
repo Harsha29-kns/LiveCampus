@@ -32,7 +32,8 @@ import MarksDashboard from './pages/MarksDashboard';
 import EventAttendance from './pages/EventAttendance';
 import AttendanceDashboard from './pages/AttendanceDashboard';
 import Leaderboard from './pages/Leaderboard';
-import VerifyPayments from './pages/VerifyPayments'; // Import the new component
+import VerifyPayments from './pages/VerifyPayments';
+import VerifyCertificate from './pages/VerifyCertificate'; // Import the new component
 
 // Guards
 import AuthGuard from './guards/AuthGuard';
@@ -85,6 +86,9 @@ function App() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/about" element={<About />} />
+          {/* Add the verification route here to make it public */}
+          <Route path="/verify-certificate" element={<VerifyCertificate />} />
+          <Route path="/verify-certificate/:id" element={<VerifyCertificate />} />
         </Route>
 
         {/* Protected Routes */}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Mail, Calendar, Clock, Edit, Camera, Save } from 'lucide-react';
+import { User, Mail, Calendar, Clock, Edit, Camera, Save, Award } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useEventStore } from '../stores/eventStore';
 import { Card, CardBody, CardHeader, CardFooter } from '../components/ui/Card';
@@ -30,6 +30,7 @@ const Profile: React.FC = () => {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [registeredEvents, setRegisteredEvents] = useState<Event[]>([]);
+  const [certificates, setCertificates] = useState<any[]>([]);
   const [club, setClub] = useState(null);
   const [isClubEditing, setIsClubEditing] = useState(false);
   const [clubEditData, setClubEditData] = useState<any>(club || {});
@@ -52,6 +53,12 @@ const Profile: React.FC = () => {
         const eventIds = registrationSnapshots.docs.map(doc => doc.data().eventId);
         const userRegisteredEvents = events.filter(event => eventIds.includes(event.id));
         setRegisteredEvents(userRegisteredEvents);
+
+        // Fetch certificates for the user
+        const certificatesQuery = query(collection(db, 'certificates'), where('userId', '==', user.id));
+        const certificatesSnapshot = await getDocs(certificatesQuery);
+        const userCertificates = certificatesSnapshot.docs.map(doc => doc.data());
+        setCertificates(userCertificates);
 
         // Fetch club data if applicable
         if (user.clubId) {
@@ -335,6 +342,46 @@ const Profile: React.FC = () => {
             )}
           </Card>
           
+          {user.role === 'student' && (
+            <Card>
+                <CardHeader>
+                    <h2 className="text-xl font-semibold text-neutral-900">My Certificates</h2>
+                </CardHeader>
+                <CardBody>
+                    {certificates.length > 0 ? (
+                        <div className="space-y-4">
+                            {certificates.map((cert) => (
+                                <div 
+                                    key={cert.id} 
+                                    className="flex flex-col sm:flex-row sm:items-center p-3 rounded-lg border border-neutral-200"
+                                >
+                                    <div className="flex-grow">
+                                        <h3 className="font-medium text-neutral-900">{cert.eventName}</h3>
+                                        <p className="text-sm text-neutral-500">Issued on: {format(parseISO(cert.issuedAt), 'MMM d, yyyy')}</p>
+                                    </div>
+                                    <div className="mt-2 sm:mt-0">
+                                        <Button 
+                                            size="sm" 
+                                            variant="outline"
+                                            onClick={() => window.open(cert.certificateUrl, '_blank')}
+                                        >
+                                            Download
+                                        </Button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="text-center py-6">
+                            <Award className="h-12 w-12 text-neutral-400 mx-auto mb-3" />
+                            <h3 className="text-lg font-medium text-neutral-700">No certificates yet</h3>
+                            <p className="text-neutral-500">Attend events to earn certificates!</p>
+                        </div>
+                    )}
+                </CardBody>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
               <h2 className="text-xl font-semibold text-neutral-900">My Registered Events</h2>

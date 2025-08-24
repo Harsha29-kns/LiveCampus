@@ -39,6 +39,7 @@ export interface Event {
   upiId?: string;
   presidentPhone?: string;
   vicePresidentPhone?: string;
+  certificateTemplateUrl?: string; // Field for the certificate template
 }
 
 export interface Club {
