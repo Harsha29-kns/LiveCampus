@@ -16,7 +16,6 @@ if (!initializeApp.length) {
     });
 }
 
-
 const db = getFirestore();
 const bucket = getStorage().bucket();
 
@@ -49,6 +48,7 @@ export default async function handler(req, res) {
         }
         const event = eventDoc.data();
         const templateImageUrl = event.certificateTemplateUrl;
+        const layout = event.certificateLayout; // <-- Get the custom layout object
 
         if (!templateImageUrl) {
             return res.status(400).json({ error: 'No certificate template found for this event.' });
@@ -58,10 +58,21 @@ export default async function handler(req, res) {
         const templateImage = await loadImage(templateImageUrl);
         const canvas = createCanvas(templateImage.width, templateImage.height);
         const ctx = canvas.getContext('2d');
+        
+        // --- DEFINE DEFAULT LAYOUT AS A FALLBACK ---
+        const defaultLayout = {
+            name: { x: canvas.width / 2, y: canvas.height / 2, fontSize: 80, color: 'black', align: 'center' },
+            regNo: { x: canvas.width / 2, y: canvas.height / 2 + 100, fontSize: 40, color: 'black', align: 'center' },
+            qrCode: { x: (canvas.width / 2) - 100, y: canvas.height - 300, size: 200 }
+        };
 
-        // Register a font (optional, but recommended for better text rendering)
-        // You would need to have this font file in your project
-        // registerFont('fonts/Roboto-Bold.ttf', { family: 'Roboto' });
+        // --- MERGE DEFAULTS WITH USER-DEFINED LAYOUT ---
+        const finalLayout = {
+            name: { ...defaultLayout.name, ...layout?.name },
+            regNo: { ...defaultLayout.regNo, ...layout?.regNo },
+            qrCode: { ...defaultLayout.qrCode, ...layout?.qrCode }
+        };
+
 
         for (const attendee of attendees) {
             // 1. Generate a unique ID for the certificate
@@ -75,14 +86,24 @@ export default async function handler(req, res) {
             // 3. Composite the new certificate image
             ctx.drawImage(templateImage, 0, 0);
             
-            // --- Customize these values based on your template ---
-            ctx.fillStyle = 'black';
-            ctx.font = '80px "Roboto", sans-serif'; // Example font
-            ctx.textAlign = 'center';
-            ctx.fillText(attendee.name, canvas.width / 2, canvas.height / 2); // Center the name
+            // --- USE FINAL LAYOUT FOR DYNAMIC PLACEMENT ---
+            // Draw Student Name
+            ctx.fillStyle = finalLayout.name.color;
+            ctx.font = `${finalLayout.name.fontSize}px "Roboto", sans-serif`;
+            ctx.textAlign = finalLayout.name.align;
+            ctx.fillText(attendee.name, finalLayout.name.x, finalLayout.name.y);
             
+            // Draw Registration Number (if it exists)
+            if (attendee.regNo) {
+                ctx.fillStyle = finalLayout.regNo.color;
+                ctx.font = `${finalLayout.regNo.fontSize}px "Roboto", sans-serif`;
+                ctx.textAlign = finalLayout.regNo.align;
+                ctx.fillText(attendee.regNo, finalLayout.regNo.x, finalLayout.regNo.y);
+            }
+
+            // Draw QR Code
             const qrImage = await loadImage(qrCodeImage);
-            ctx.drawImage(qrImage, (canvas.width / 2) - 100, canvas.height - 300, 200, 200); // Position QR code
+            ctx.drawImage(qrImage, finalLayout.qrCode.x, finalLayout.qrCode.y, finalLayout.qrCode.size, finalLayout.qrCode.size);
             // ----------------------------------------------------
 
             // 4. Upload the generated certificate to Firebase Storage

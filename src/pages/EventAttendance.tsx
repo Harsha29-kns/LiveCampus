@@ -28,6 +28,9 @@ const EventAttendance: React.FC = () => {
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | undefined>(undefined);
   const [isGeneratingCerts, setIsGeneratingCerts] = useState(false);
+  // --- NEW STATE TO PREVENT RAPID RE-SCANS ---
+  const [lastScannedId, setLastScannedId] = useState<string | null>(null);
+
 
   useEffect(() => {
     const fetchData = async () => {
@@ -121,27 +124,37 @@ const EventAttendance: React.FC = () => {
 
 
   const handleScan = async (data: any) => {
+    // --- MODIFIED SCAN LOGIC ---
     if (data?.text) {
-      try {
-        const parsed = JSON.parse(data.text);
-        if (parsed.eventId === eventId) {
-          const reg = registrations.find(r => r.userId === parsed.userId);
-          if (reg) {
-            if (reg.status !== 'attended') {
-              await handleToggle(reg.id, true);
-              toast.success(`Welcome, ${reg.name || reg.regNo}! Marked as present.`);
-            } else {
-              toast.success(`${reg.name || reg.regNo} is already marked as present.`);
-            }
-          } else {
-            toast.error('Registration not found for this user.');
-          }
-        } else {
-          toast.error('QR code is for a different event.');
+        // If the same QR is scanned again within 3 seconds, ignore it.
+        if (lastScannedId === data.text) {
+            return;
         }
-      } catch {
-        toast.error('Invalid QR code format.');
-      }
+        setLastScannedId(data.text);
+        
+        // Reset the last scanned ID after 3 seconds to allow for new scans.
+        setTimeout(() => setLastScannedId(null), 3000);
+
+        try {
+            const parsed = JSON.parse(data.text);
+            if (parsed.eventId === eventId) {
+                const reg = registrations.find(r => r.userId === parsed.userId);
+                if (reg) {
+                    if (reg.status !== 'attended') {
+                        await handleToggle(reg.id, true);
+                        toast.success(`Welcome, ${reg.name || reg.regNo}! Marked as present.`);
+                    } else {
+                        toast.success(`${reg.name || reg.regNo} is already marked as present.`);
+                    }
+                } else {
+                    toast.error('Registration not found for this user.');
+                }
+            } else {
+                toast.error('QR code is for a different event.');
+            }
+        } catch {
+            toast.error('Invalid QR code format.');
+        }
     }
   };
 
@@ -153,10 +166,10 @@ const EventAttendance: React.FC = () => {
         const attendees = registrations.filter(r => r.status === 'attended');
         if (attendees.length === 0) {
             toast.error("No attendees to generate certificates for.");
+            setIsGeneratingCerts(false); // Stop loading if no attendees
             return;
         }
 
-        // This would be a call to our new serverless function
         const response = await fetch('/api/generate-certificates', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

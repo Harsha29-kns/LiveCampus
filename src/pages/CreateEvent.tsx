@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, MapPin, Users, ImageUp, Tag, Calendar, Clock, Save, DollarSign, Phone, Award } from 'lucide-react';
+import { ArrowLeft, MapPin, Users, ImageUp, Tag, Calendar, Clock, Save, DollarSign, Phone, Award, Settings } from 'lucide-react';
 import { useEventStore } from '../stores/eventStore';
 import { useAuthStore } from '../stores/authStore';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
-import { Event } from '../types';
+import { Event, CertificateLayout } from '../types';
 import toast from 'react-hot-toast';
 import { format, parseISO } from 'date-fns';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
+import CertificateLayoutEditorModal from '../components/ui/CertificateLayoutEditor';
 
 const CreateEvent: React.FC = () => {
     const { id } = useParams<{ id?: string }>();
@@ -38,11 +39,14 @@ const CreateEvent: React.FC = () => {
         upiId: '',
         presidentPhone: '',
         vicePresidentPhone: '',
-        certificateTemplateUrl: '', // New field for the template URL
+        certificateTemplateUrl: '',
     });
     const [imageFile, setImageFile] = useState<File | null>(null);
-    const [certificateFile, setCertificateFile] = useState<File | null>(null); // New state for the certificate file
+    const [certificateFile, setCertificateFile] = useState<File | null>(null);
     const [errors, setErrors] = useState<Record<string, string>>({});
+
+    const [certificateLayout, setCertificateLayout] = useState<CertificateLayout | null>(null);
+    const [isLayoutModalOpen, setIsLayoutModalOpen] = useState(false);
 
     useEffect(() => {
         const loadEventData = async () => {
@@ -71,8 +75,11 @@ const CreateEvent: React.FC = () => {
                         upiId: event.upiId || '',
                         presidentPhone: event.presidentPhone || '',
                         vicePresidentPhone: event.vicePresidentPhone || '',
-                        certificateTemplateUrl: event.certificateTemplateUrl || '', // Load existing template
+                        certificateTemplateUrl: event.certificateTemplateUrl || '',
                     });
+                    if (event.certificateLayout) {
+                        setCertificateLayout(event.certificateLayout);
+                    }
                 } else {
                     toast.error("Event not found for editing.");
                     navigate('/events');
@@ -108,6 +115,11 @@ const CreateEvent: React.FC = () => {
         }
     };
 
+    const handleSaveLayout = (layout: CertificateLayout) => {
+        setCertificateLayout(layout);
+        setIsLayoutModalOpen(false);
+        toast.success('Certificate layout saved!');
+    };
 
     const uploadToCloudinary = async (file: File, preset: string) => {
         const formData = new FormData();
@@ -179,21 +191,20 @@ const CreateEvent: React.FC = () => {
         }
 
         setIsSubmitting(true);
+        const uploadToastId = (imageFile || certificateFile) ? toast.loading('Uploading files...') : null;
 
         try {
             let imageUrl = formData.image || '';
             if (imageFile) {
-                toast.loading('Uploading event image...');
                 imageUrl = await uploadToCloudinary(imageFile, 'event-images');
-                toast.dismiss();
             }
 
             let certificateUrl = formData.certificateTemplateUrl || '';
             if (certificateFile) {
-                toast.loading('Uploading certificate template...');
                 certificateUrl = await uploadToCloudinary(certificateFile, 'certificate-templates');
-                toast.dismiss();
             }
+
+            if (uploadToastId) toast.dismiss(uploadToastId);
 
             const eventData: Partial<Event> = {
                 title: formData.title,
@@ -212,6 +223,7 @@ const CreateEvent: React.FC = () => {
                 presidentPhone: formData.presidentPhone || undefined,
                 vicePresidentPhone: formData.vicePresidentPhone || undefined,
                 certificateTemplateUrl: certificateUrl || undefined,
+                certificateLayout: certificateLayout || undefined,
             };
 
             if (isEditMode && id) {
@@ -231,6 +243,7 @@ const CreateEvent: React.FC = () => {
             navigate('/events');
 
         } catch (error: any) {
+            if (uploadToastId) toast.dismiss(uploadToastId);
             console.error('Error creating/updating event:', error);
             toast.error(error.message || 'Failed to save the event. Please try again.');
         } finally {
@@ -349,6 +362,18 @@ const CreateEvent: React.FC = () => {
                             )}
                             <input id="certificate-upload" type="file" accept="image/png, image/jpeg" onChange={handleCertificateChange} className="absolute inset-0 w-full h-full opacity-0" />
                         </label>
+
+                        {(certificateFile || formData.certificateTemplateUrl) && (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                leftIcon={<Settings size={16} />}
+                                onClick={() => setIsLayoutModalOpen(true)}
+                                className="mt-4 w-full"
+                            >
+                                Configure Certificate Layout
+                            </Button>
+                        )}
                     </div>
                     
                     <div className="p-6 bg-white rounded-lg border shadow-sm">
@@ -389,6 +414,14 @@ const CreateEvent: React.FC = () => {
                     {isEditMode ? 'Update Event' : 'Create Event'}
                 </Button>
             </div>
+            
+            <CertificateLayoutEditorModal
+                isOpen={isLayoutModalOpen}
+                onClose={() => setIsLayoutModalOpen(false)}
+                templateUrl={certificateFile ? URL.createObjectURL(certificateFile) : formData.certificateTemplateUrl}
+                initialLayout={certificateLayout}
+                onSave={handleSaveLayout}
+            />
         </form>
     );
 };

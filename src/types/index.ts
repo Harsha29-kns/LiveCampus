@@ -1,5 +1,12 @@
 export type UserRole = 'admin' | 'faculty' | 'student' | 'club';
 
+// This new interface defines the shape of the layout object
+export interface CertificateLayout {
+  name: { x: number; y: number; fontSize: number; color: string; align: 'left' | 'center' | 'right' };
+  regNo: { x: number; y: number; fontSize: number; color: string; align: 'left' | 'center' | 'right' };
+  qrCode: { x: number; y: number; size: number };
+}
+
 export interface User {
   id: string;
   name: string;
@@ -40,6 +47,7 @@ export interface Event {
   presidentPhone?: string;
   vicePresidentPhone?: string;
   certificateTemplateUrl?: string; // Field for the certificate template
+  certificateLayout?: CertificateLayout; // <-- ADD THIS NEW FIELD
 }
 
 export interface Club {
