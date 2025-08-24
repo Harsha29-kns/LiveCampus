@@ -6,7 +6,6 @@ import QRCode from 'qrcode';
 import { v2 as cloudinary } from 'cloudinary';
 
 // --- Configure Cloudinary ---
-// Uses environment variables: CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET
 if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
     throw new Error('Cloudinary environment variables are not set.');
 }
@@ -23,14 +22,12 @@ if (!process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
 }
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
 
-// Safely initialize the app, preventing re-initialization
 if (getApps().length === 0) {
     initializeApp({
         credential: cert(serviceAccount),
     });
 }
 
-// You only need Firestore from Firebase for this function
 const db = getFirestore();
 
 // --- Nodemailer Transport ---
@@ -116,11 +113,18 @@ export default async function handler(req, res) {
             
             ctx.drawImage(templateImage, 0, 0);
             
+            // --- MODIFICATION START ---
+            
+            // Set text baseline to middle for vertical centering
+            ctx.textBaseline = 'middle';
+
+            // Draw Student Name
             ctx.fillStyle = finalLayout.name.color;
             ctx.font = `${finalLayout.name.fontSize}px "Roboto", sans-serif`;
             ctx.textAlign = finalLayout.name.align;
             ctx.fillText(user.name, finalLayout.name.x, finalLayout.name.y);
             
+            // Draw Registration Number
             if (attendee.regNo) {
                 ctx.fillStyle = finalLayout.regNo.color;
                 ctx.font = `${finalLayout.regNo.fontSize}px "Roboto", sans-serif`;
@@ -128,8 +132,13 @@ export default async function handler(req, res) {
                 ctx.fillText(attendee.regNo, finalLayout.regNo.x, finalLayout.regNo.y);
             }
 
+            // Draw QR Code (adjusting coordinates to draw from the center)
             const qrImage = await loadImage(qrCodeImage);
-            ctx.drawImage(qrImage, finalLayout.qrCode.x, finalLayout.qrCode.y, finalLayout.qrCode.size, finalLayout.qrCode.size);
+            const qrX = finalLayout.qrCode.x - (finalLayout.qrCode.size / 2);
+            const qrY = finalLayout.qrCode.y - (finalLayout.qrCode.size / 2);
+            ctx.drawImage(qrImage, qrX, qrY, finalLayout.qrCode.size, finalLayout.qrCode.size);
+
+            // --- MODIFICATION END ---
 
             const buffer = canvas.toBuffer('image/png');
             const dataUri = `data:image/png;base64,${buffer.toString('base64')}`;
