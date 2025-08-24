@@ -49,10 +49,10 @@ export default async function handler(req, res) {
         return res.status(405).json({ error: 'Method Not Allowed' });
     }
 
-    const { eventId, attendees } = req.body;
+    const { eventId } = req.body;
 
-    if (!eventId || !attendees || !Array.isArray(attendees)) {
-        return res.status(400).json({ error: 'Missing required eventId or attendees data.' });
+    if (!eventId) {
+        return res.status(400).json({ error: 'Missing required eventId.' });
     }
 
     try {
@@ -68,10 +68,21 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: 'No certificate template found for this event.' });
         }
 
+        const attendeesSnapshot = await db.collection('eventRegistrations')
+            .where('eventId', '==', eventId)
+            .where('status', '==', 'attended')
+            .get();
+
+        if (attendeesSnapshot.empty) {
+            return res.status(400).json({ error: 'No attended users found for this event.' });
+        }
+
+        const attendees = attendeesSnapshot.docs.map(doc => doc.data());
+
         const templateImage = await loadImage(templateImageUrl);
         const canvas = createCanvas(templateImage.width, templateImage.height);
         const ctx = canvas.getContext('2d');
-        
+
         const defaultLayout = {
             name: { x: canvas.width / 2, y: canvas.height / 2, fontSize: 80, color: 'black', align: 'center' },
             regNo: { x: canvas.width / 2, y: canvas.height / 2 + 100, fontSize: 40, color: 'black', align: 'center' },
@@ -85,30 +96,31 @@ export default async function handler(req, res) {
         };
 
         for (const attendee of attendees) {
-            // VALIDATION: Skip attendee if email is missing to prevent a crash
-            if (!attendee.email) {
-                console.warn(`Skipping attendee without an email: ${attendee.name || 'Unknown'}`);
-                continue; // Move to the next attendee
+            const userDoc = await db.collection('users').doc(attendee.userId).get();
+            if (!userDoc.exists) {
+                console.warn(`Skipping certificate for user ID that does not exist: ${attendee.userId}`);
+                continue;
             }
+            const user = userDoc.data();
 
-            // 1. Generate a unique ID for the certificate in Firestore
+            if (!user.email) {
+                console.warn(`Skipping attendee without an email: ${user.name || 'Unknown'}`);
+                continue;
+            }
+            
             const certificateRef = db.collection('certificates').doc();
             const certificateId = certificateRef.id;
 
-            // 2. Create the verification URL and QR Code
             const verificationUrl = `https://live-campus.vercel.app/verify-certificate?id=${certificateId}`;
             const qrCodeImage = await QRCode.toDataURL(verificationUrl);
-
-            // 3. Composite the new certificate image
+            
             ctx.drawImage(templateImage, 0, 0);
             
-            // Draw Student Name
             ctx.fillStyle = finalLayout.name.color;
             ctx.font = `${finalLayout.name.fontSize}px "Roboto", sans-serif`;
             ctx.textAlign = finalLayout.name.align;
-            ctx.fillText(attendee.name, finalLayout.name.x, finalLayout.name.y);
+            ctx.fillText(user.name, finalLayout.name.x, finalLayout.name.y);
             
-            // Draw Registration Number (if it exists)
             if (attendee.regNo) {
                 ctx.fillStyle = finalLayout.regNo.color;
                 ctx.font = `${finalLayout.regNo.fontSize}px "Roboto", sans-serif`;
@@ -116,11 +128,9 @@ export default async function handler(req, res) {
                 ctx.fillText(attendee.regNo, finalLayout.regNo.x, finalLayout.regNo.y);
             }
 
-            // Draw QR Code
             const qrImage = await loadImage(qrCodeImage);
             ctx.drawImage(qrImage, finalLayout.qrCode.x, finalLayout.qrCode.y, finalLayout.qrCode.size, finalLayout.qrCode.size);
 
-            // 4. Upload the generated certificate to Cloudinary
             const buffer = canvas.toBuffer('image/png');
             const dataUri = `data:image/png;base64,${buffer.toString('base64')}`;
             
@@ -132,24 +142,22 @@ export default async function handler(req, res) {
             
             const downloadUrl = uploadResult.secure_url;
 
-            // 5. Save certificate metadata to Firestore
             await certificateRef.set({
                 id: certificateId,
                 userId: attendee.userId,
-                userName: attendee.name,
+                userName: user.name,
                 eventId: eventId,
                 eventName: event.title,
                 issuedAt: new Date().toISOString(),
                 certificateUrl: downloadUrl,
             });
 
-            // 6. Send the certificate email
             await transporter.sendMail({
                 from: '"LiveCampus" <livecampuss@gmail.com>',
-                to: attendee.email,
+                to: user.email,
                 subject: `Your Certificate for ${event.title}`,
                 html: `
-                    <p>Hello ${attendee.name},</p>
+                    <p>Hello ${user.name},</p>
                     <p>Congratulations on attending "${event.title}"! Your certificate is ready.</p>
                     <p>You can download it from your profile on LiveCampus or by clicking the link below.</p>
                     <a href="${downloadUrl}" style="display: inline-block; padding: 10px 20px; color: white; background-color: #007bff; text-decoration: none; border-radius: 5px;">Download Your Certificate</a>
