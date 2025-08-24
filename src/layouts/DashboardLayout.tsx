@@ -68,7 +68,7 @@ const DashboardLayout: React.FC = () => {
     const roleSpecificItems = {
         admin: [
             { to: '/admin/users', icon: <Settings size={22} />, label: 'Admin Panel', roles: ['admin'] },
-            {/* to: '/admin/verify-payments', icon: <DollarSign size={22} />, label: 'Verify Payments', roles: ['admin'] */}
+            { to: '/admin/verify-payments', icon: <DollarSign size={22} />, label: 'Verify Payments', roles: ['admin'] }
         ],
         club: [
             { to: '/attendance', icon: <ClipboardCheck size={22} />, label: 'Attendance', roles: ['club', 'faculty'] },
