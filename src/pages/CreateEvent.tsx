@@ -40,7 +40,7 @@ const CreateEvent: React.FC = () => {
         presidentPhone: '',
         vicePresidentPhone: '',
         certificateTemplateUrl: '',
-        certificateLayout: null as CertificateLayout | null, // Layout is now part of the main form data
+        certificateLayout: null as CertificateLayout | null, // <-- FIX: Layout is now part of the main form data
     });
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [certificateFile, setCertificateFile] = useState<File | null>(null);
@@ -92,11 +92,7 @@ const CreateEvent: React.FC = () => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
         if (errors[name]) {
-            setErrors(prev => {
-                const newErrors = { ...prev };
-                delete newErrors[name];
-                return newErrors;
-            });
+            setErrors(prev => ({ ...prev, [name]: undefined }));
         }
     };
 
@@ -113,11 +109,10 @@ const CreateEvent: React.FC = () => {
     };
 
     const handleSaveLayout = (layout: CertificateLayout) => {
-        setFormData(prev => ({ ...prev, certificateLayout: layout }));
+        setFormData(prev => ({ ...prev, certificateLayout: layout })); // <-- FIX: Update the main formData state
         setIsLayoutModalOpen(false);
         toast.success('Certificate layout saved!');
     };
-
     const uploadToCloudinary = async (file: File, preset: string) => {
         const formData = new FormData();
         formData.append('file', file);

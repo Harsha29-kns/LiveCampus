@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { CertificateLayout } from '../../types';
 import Button from './Button';
 import Input from './Input';
-import { X, Move, Type, Hash, QrCode } from 'lucide-react';
+import { X, Type, Hash, QrCode } from 'lucide-react';
 
 interface CertificateLayoutEditorModalProps {
     isOpen: boolean;
@@ -89,17 +89,13 @@ const CertificateLayoutEditorModal: React.FC<CertificateLayoutEditorModalProps> 
         }));
     };
     
-    // --- MODIFICATION START ---
     const handleQrCodeSizeChange = (value: string) => {
-        // If the input is empty, parseInt will result in NaN. Default to 0 instead.
-        const newSize = parseInt(value) || 0; 
+        const newSize = parseInt(value) || 0; // FIX: Default to 0 if input is empty
         setLayout(prev => ({
             ...prev,
             qrCode: { ...prev.qrCode, size: newSize },
         }));
     };
-    // --- MODIFICATION END ---
-
 
     if (!isOpen) return null;
 
@@ -116,34 +112,29 @@ const CertificateLayoutEditorModal: React.FC<CertificateLayoutEditorModalProps> 
                     <div className="w-1/4 p-4 border-r overflow-y-auto">
                         <h3 className="font-semibold mb-4">Properties</h3>
                         
-                        {/* Name Properties */}
                         <div className="mb-6">
                             <h4 className="font-medium text-sm text-gray-600 mb-2 flex items-center"><Type size={14} className="mr-2"/> Student Name</h4>
                             <Input label="Font Size" type="number" value={layout.name.fontSize} onChange={(e) => handlePropertyChange('name', 'fontSize', parseInt(e.target.value) || 0)} />
                             <Input label="Color" type="color" value={layout.name.color} onChange={(e) => handlePropertyChange('name', 'color', e.target.value)} />
                         </div>
 
-                        {/* Reg No Properties */}
                         <div className="mb-6">
                             <h4 className="font-medium text-sm text-gray-600 mb-2 flex items-center"><Hash size={14} className="mr-2"/> Registration No.</h4>
                             <Input label="Font Size" type="number" value={layout.regNo.fontSize} onChange={(e) => handlePropertyChange('regNo', 'fontSize', parseInt(e.target.value) || 0)} />
                             <Input label="Color" type="color" value={layout.regNo.color} onChange={(e) => handlePropertyChange('regNo', 'color', e.target.value)} />
                         </div>
 
-                        {/* QR Code Properties */}
                          <div className="mb-6">
                             <h4 className="font-medium text-sm text-gray-600 mb-2 flex items-center"><QrCode size={14} className="mr-2"/> QR Code</h4>
                             <Input label="Size (px)" type="number" value={layout.qrCode.size} onChange={(e) => handleQrCodeSizeChange(e.target.value)} />
                         </div>
-
                     </div>
 
                     {/* Canvas */}
                     <div className="flex-1 bg-gray-200 p-4 overflow-auto flex items-center justify-center">
-                        <div ref={containerRef} className="relative shadow-lg" style={{ width: '1000px', height: '707px' /* A4 aspect ratio example */ }}>
+                        <div ref={containerRef} className="relative shadow-lg" style={{ width: '1000px', height: '707px' }}>
                             <img src={templateUrl} alt="Certificate Template" className="w-full h-full" />
                             
-                            {/* Draggable Name */}
                             <div
                                 onMouseDown={(e) => handleMouseDown(e, 'name')}
                                 className="absolute cursor-grab p-2 border border-dashed border-blue-500"
@@ -158,7 +149,6 @@ const CertificateLayoutEditorModal: React.FC<CertificateLayoutEditorModalProps> 
                                 [Student Name]
                             </div>
 
-                            {/* Draggable RegNo */}
                             <div
                                 onMouseDown={(e) => handleMouseDown(e, 'regNo')}
                                 className="absolute cursor-grab p-2 border border-dashed border-green-500"
@@ -173,7 +163,6 @@ const CertificateLayoutEditorModal: React.FC<CertificateLayoutEditorModalProps> 
                                 [Registration No]
                             </div>
                             
-                            {/* Draggable QR Code */}
                             <div
                                 onMouseDown={(e) => handleMouseDown(e, 'qrCode')}
                                 className="absolute cursor-grab flex items-center justify-center bg-gray-300/50 border border-dashed border-red-500"
@@ -185,7 +174,7 @@ const CertificateLayoutEditorModal: React.FC<CertificateLayoutEditorModalProps> 
                                     transform: 'translate(-50%, -50%)'
                                 }}
                             >
-                                <QrCode size={layout.qrCode.size * 0.8} />
+                                <QrCode size={layout.qrCode.size > 0 ? layout.qrCode.size * 0.8 : 0} />
                             </div>
                         </div>
                     </div>
