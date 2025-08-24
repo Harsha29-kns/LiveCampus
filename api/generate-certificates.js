@@ -1,7 +1,9 @@
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import nodemailer from 'nodemailer';
-import { createCanvas, loadImage } from 'canvas';
+// Corrected import for canvas and path
+import { createCanvas, loadImage, registerFont } from 'canvas';
+import path from 'path'; // CORRECTED: Import the built-in Node.js 'path' module
 import QRCode from 'qrcode';
 import { v2 as cloudinary } from 'cloudinary';
 
@@ -39,6 +41,20 @@ const transporter = nodemailer.createTransport({
         pass: process.env.BREVO_PASS,
     },
 });
+
+// --- Register Font with node-canvas ---
+// This tells the canvas where to find the Roboto font file.
+// It assumes you have a folder named 'fonts' inside your 'api' directory
+// and that this file is included in your deployment.
+try {
+    const fontPath = path.join(process.cwd(), 'api', 'fonts', 'Roboto-Regular.ttf');
+    console.log(`Attempting to register font from path: ${fontPath}`);
+    registerFont(fontPath, { family: 'Roboto' });
+    console.log("Font 'Roboto' registered successfully.");
+} catch (error) {
+    console.error("Could not register font. Make sure 'api/fonts/Roboto-Regular.ttf' exists in your project's root directory when deployed.", error);
+}
+
 
 // --- Main Handler ---
 export default async function handler(req, res) {
@@ -114,8 +130,6 @@ export default async function handler(req, res) {
             
             ctx.drawImage(templateImage, 0, 0);
             
-            // --- APPLY SCALED LAYOUT ---
-            
             // Convert ratios to final pixel values based on the ACTUAL template dimensions
             const finalNameX = finalLayoutRatios.name.x * templateImage.width;
             const finalNameY = finalLayoutRatios.name.y * templateImage.height;
@@ -132,21 +146,19 @@ export default async function handler(req, res) {
             // Draw elements using the calculated pixel values
             ctx.textBaseline = 'middle';
             ctx.fillStyle = finalLayoutRatios.name.color;
-            ctx.font = `${finalNameFontSize}px "Roboto", sans-serif`;
+            ctx.font = `${finalNameFontSize}px "Roboto"`; // Ensure the family name matches the one registered
             ctx.textAlign = finalLayoutRatios.name.align;
             ctx.fillText(user.name, finalNameX, finalNameY);
             
             if (attendee.regNo) {
                 ctx.fillStyle = finalLayoutRatios.regNo.color;
-                ctx.font = `${finalRegNoFontSize}px "Roboto", sans-serif`;
+                ctx.font = `${finalRegNoFontSize}px "Roboto"`; // Ensure the family name matches
                 ctx.textAlign = finalLayoutRatios.regNo.align;
                 ctx.fillText(attendee.regNo, finalRegNoX, finalRegNoY);
             }
 
             const qrImage = await loadImage(qrCodeImage);
             ctx.drawImage(qrImage, finalQrX - (finalQrSize / 2), finalQrY - (finalQrSize / 2), finalQrSize, finalQrSize);
-
-            // --- END OF FIX ---
 
             const buffer = canvas.toBuffer('image/png');
             const dataUri = `data:image/png;base64,${buffer.toString('base64')}`;
