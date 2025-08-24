@@ -1,29 +1,34 @@
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
-import { getStorage } from 'firebase-admin/storage';
 import nodemailer from 'nodemailer';
-import { createCanvas, loadImage, registerFont } from 'canvas';
+import { createCanvas, loadImage } from 'canvas';
 import QRCode from 'qrcode';
+import { v2 as cloudinary } from 'cloudinary';
 
-// --- Initialize Firebase Admin SDK ---
-// Check if the environment variable exists before parsing
+// --- Configure Cloudinary ---
+// Uses environment variables: CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+    secure: true,
+});
+
+// --- Initialize Firebase Admin SDK for Firestore ---
 if (!process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
     throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY is not set in environment variables.');
 }
-
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
 
-// Use getApps() to safely initialize the app, preventing re-initialization
+// Safely initialize the app, preventing re-initialization
 if (getApps().length === 0) {
     initializeApp({
         credential: cert(serviceAccount),
-        storageBucket: `${process.env.VITE_FIREBASE_PROJECT_ID}.appspot.com`
     });
 }
 
-// You can now safely call Firebase services
+// You only need Firestore from Firebase now
 const db = getFirestore();
-const bucket = getStorage().bucket();
 
 // --- Nodemailer Transport ---
 const transporter = nodemailer.createTransport({
@@ -54,31 +59,27 @@ export default async function handler(req, res) {
         }
         const event = eventDoc.data();
         const templateImageUrl = event.certificateTemplateUrl;
-        const layout = event.certificateLayout; // <-- Get the custom layout object
+        const layout = event.certificateLayout;
 
         if (!templateImageUrl) {
             return res.status(400).json({ error: 'No certificate template found for this event.' });
         }
 
-        // Load the certificate template image
         const templateImage = await loadImage(templateImageUrl);
         const canvas = createCanvas(templateImage.width, templateImage.height);
         const ctx = canvas.getContext('2d');
         
-        // --- DEFINE DEFAULT LAYOUT AS A FALLBACK ---
         const defaultLayout = {
             name: { x: canvas.width / 2, y: canvas.height / 2, fontSize: 80, color: 'black', align: 'center' },
             regNo: { x: canvas.width / 2, y: canvas.height / 2 + 100, fontSize: 40, color: 'black', align: 'center' },
             qrCode: { x: (canvas.width / 2) - 100, y: canvas.height - 300, size: 200 }
         };
 
-        // --- MERGE DEFAULTS WITH USER-DEFINED LAYOUT ---
         const finalLayout = {
             name: { ...defaultLayout.name, ...layout?.name },
             regNo: { ...defaultLayout.regNo, ...layout?.regNo },
             qrCode: { ...defaultLayout.qrCode, ...layout?.qrCode }
         };
-
 
         for (const attendee of attendees) {
             // 1. Generate a unique ID for the certificate
@@ -92,7 +93,6 @@ export default async function handler(req, res) {
             // 3. Composite the new certificate image
             ctx.drawImage(templateImage, 0, 0);
             
-            // --- USE FINAL LAYOUT FOR DYNAMIC PLACEMENT ---
             // Draw Student Name
             ctx.fillStyle = finalLayout.name.color;
             ctx.font = `${finalLayout.name.fontSize}px "Roboto", sans-serif`;
@@ -110,16 +110,18 @@ export default async function handler(req, res) {
             // Draw QR Code
             const qrImage = await loadImage(qrCodeImage);
             ctx.drawImage(qrImage, finalLayout.qrCode.x, finalLayout.qrCode.y, finalLayout.qrCode.size, finalLayout.qrCode.size);
-            // ----------------------------------------------------
 
-            // 4. Upload the generated certificate to Firebase Storage
+            // 4. Upload the generated certificate to Cloudinary
             const buffer = canvas.toBuffer('image/png');
-            const fileName = `certificates/${eventId}/${attendee.userId}.png`;
-            const file = bucket.file(fileName);
-            await file.save(buffer, {
-                metadata: { contentType: 'image/png' },
+            const dataUri = `data:image/png;base64,${buffer.toString('base64')}`;
+            
+            const uploadResult = await cloudinary.uploader.upload(dataUri, {
+                folder: `certificates/${eventId}`, // Organizes files in Cloudinary
+                public_id: attendee.userId,      // Sets a specific file name
+                overwrite: true
             });
-            const downloadUrl = await file.getSignedUrl({ action: 'read', expires: '03-09-2491' });
+            
+            const downloadUrl = uploadResult.secure_url; // Get the secure URL from Cloudinary
 
             // 5. Save certificate metadata to Firestore
             await certificateRef.set({
@@ -129,7 +131,7 @@ export default async function handler(req, res) {
                 eventId: eventId,
                 eventName: event.title,
                 issuedAt: new Date().toISOString(),
-                certificateUrl: downloadUrl[0],
+                certificateUrl: downloadUrl, // Use the new Cloudinary URL
             });
 
             // 6. Send the certificate email
@@ -141,7 +143,7 @@ export default async function handler(req, res) {
                     <p>Hello ${attendee.name},</p>
                     <p>Congratulations on attending "${event.title}"! Please find your certificate attached.</p>
                     <p>You can also download it from your profile on LiveCampus.</p>
-                    <a href="${downloadUrl[0]}">Download Your Certificate</a>
+                    <a href="${downloadUrl}">Download Your Certificate</a>
                 `,
             });
         }
