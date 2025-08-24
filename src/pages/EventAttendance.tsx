@@ -7,7 +7,7 @@ import Button from '../components/ui/Button';
 import toast from 'react-hot-toast';
 import Input from '../components/ui/Input';
 import Badge from '../components/ui/Badge';
-import { UserCheck, UserX, Users, QrCode, Search, ArrowLeft, VideoOff, Award } from 'lucide-react';
+import { UserCheck, UserX, Users, QrCode, Search, ArrowLeft, VideoOff, Award, Download } from 'lucide-react';
 import { isPast, parseISO } from 'date-fns';
 
 const ToggleSwitch = ({ checked, onChange }: { checked: boolean; onChange: (checked: boolean) => void }) => (
@@ -30,6 +30,7 @@ const EventAttendance: React.FC = () => {
   const [isGeneratingCerts, setIsGeneratingCerts] = useState(false);
   // --- NEW STATE TO PREVENT RAPID RE-SCANS ---
   const [lastScannedId, setLastScannedId] = useState<string | null>(null);
+  const [generatedCertificates, setGeneratedCertificates] = useState<any[]>([]);
 
 
   useEffect(() => {
@@ -185,6 +186,13 @@ const EventAttendance: React.FC = () => {
 
         toast.dismiss();
         toast.success('Certificates have been successfully generated and sent to attendees!');
+
+        // Fetch the generated certificates to allow for download
+        const certsQuery = query(collection(db, 'certificates'), where('eventId', '==', eventId));
+        const certsSnapshot = await getDocs(certsQuery);
+        const certsData = certsSnapshot.docs.map(doc => doc.data());
+        setGeneratedCertificates(certsData);
+
     } catch (error) {
         toast.dismiss();
         toast.error("An error occurred while generating certificates.");
@@ -302,6 +310,32 @@ const EventAttendance: React.FC = () => {
           )}
         </div>
       </div>
+
+      {generatedCertificates.length > 0 && (
+        <div className="bg-white rounded-lg border shadow-sm mt-8">
+          <div className="p-4 border-b">
+            <h3 className="text-lg font-semibold">Generated Certificates</h3>
+          </div>
+          <div className="divide-y divide-gray-200">
+            {generatedCertificates.map(cert => (
+              <div key={cert.id} className="flex items-center justify-between p-4">
+                <div>
+                  <p className="font-semibold text-gray-800">{cert.userName}</p>
+                  <p className="text-sm text-gray-500">Issued on: {new Date(cert.issuedAt).toLocaleDateString()}</p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  leftIcon={<Download size={16} />}
+                  onClick={() => window.open(cert.certificateUrl, '_blank')}
+                >
+                  Download
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {showScanner && (
         <div className="fixed inset-0 bg-black bg-opacity-80 flex flex-col items-center justify-center z-50 p-4 animate-fade-in">
