@@ -201,7 +201,7 @@ const CreateEvent: React.FC = () => {
 
             let certificateUrl = formData.certificateTemplateUrl || '';
             if (certificateFile) {
-                certificateUrl = await uploadToCloudinary(certificateFile, 'certificate-templates');
+                certificateUrl = await uploadToCloudinary(certificateFile, 'event-images');
             }
 
             if (uploadToastId) toast.dismiss(uploadToastId);
