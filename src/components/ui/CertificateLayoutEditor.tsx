@@ -89,12 +89,16 @@ const CertificateLayoutEditorModal: React.FC<CertificateLayoutEditorModalProps> 
         }));
     };
     
-    const handleQrCodeSizeChange = (value: number) => {
+    // --- MODIFICATION START ---
+    const handleQrCodeSizeChange = (value: string) => {
+        // If the input is empty, parseInt will result in NaN. Default to 0 instead.
+        const newSize = parseInt(value) || 0; 
         setLayout(prev => ({
             ...prev,
-            qrCode: { ...prev.qrCode, size: value },
+            qrCode: { ...prev.qrCode, size: newSize },
         }));
     };
+    // --- MODIFICATION END ---
 
 
     if (!isOpen) return null;
@@ -115,21 +119,21 @@ const CertificateLayoutEditorModal: React.FC<CertificateLayoutEditorModalProps> 
                         {/* Name Properties */}
                         <div className="mb-6">
                             <h4 className="font-medium text-sm text-gray-600 mb-2 flex items-center"><Type size={14} className="mr-2"/> Student Name</h4>
-                            <Input label="Font Size" type="number" value={layout.name.fontSize} onChange={(e) => handlePropertyChange('name', 'fontSize', parseInt(e.target.value))} />
+                            <Input label="Font Size" type="number" value={layout.name.fontSize} onChange={(e) => handlePropertyChange('name', 'fontSize', parseInt(e.target.value) || 0)} />
                             <Input label="Color" type="color" value={layout.name.color} onChange={(e) => handlePropertyChange('name', 'color', e.target.value)} />
                         </div>
 
                         {/* Reg No Properties */}
                         <div className="mb-6">
                             <h4 className="font-medium text-sm text-gray-600 mb-2 flex items-center"><Hash size={14} className="mr-2"/> Registration No.</h4>
-                            <Input label="Font Size" type="number" value={layout.regNo.fontSize} onChange={(e) => handlePropertyChange('regNo', 'fontSize', parseInt(e.target.value))} />
+                            <Input label="Font Size" type="number" value={layout.regNo.fontSize} onChange={(e) => handlePropertyChange('regNo', 'fontSize', parseInt(e.target.value) || 0)} />
                             <Input label="Color" type="color" value={layout.regNo.color} onChange={(e) => handlePropertyChange('regNo', 'color', e.target.value)} />
                         </div>
 
                         {/* QR Code Properties */}
                          <div className="mb-6">
                             <h4 className="font-medium text-sm text-gray-600 mb-2 flex items-center"><QrCode size={14} className="mr-2"/> QR Code</h4>
-                            <Input label="Size (px)" type="number" value={layout.qrCode.size} onChange={(e) => handleQrCodeSizeChange(parseInt(e.target.value))} />
+                            <Input label="Size (px)" type="number" value={layout.qrCode.size} onChange={(e) => handleQrCodeSizeChange(e.target.value)} />
                         </div>
 
                     </div>
