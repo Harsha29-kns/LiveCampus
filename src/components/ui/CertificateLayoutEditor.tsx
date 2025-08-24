@@ -21,10 +21,14 @@ const CertificateLayoutEditorModal: React.FC<CertificateLayoutEditorModalProps> 
     initialLayout,
     onSave,
 }) => {
+    // Define a manageable, fixed size for the editor canvas for a better UX.
+    const EDITOR_WIDTH = 1000;
+    const EDITOR_HEIGHT = 707; // Maintain a common aspect ratio
+
     const [layout, setLayout] = useState<CertificateLayout>({
-        name: { x: 200, y: 200, fontSize: 80, color: '#000000', align: 'center' },
-        regNo: { x: 200, y: 300, fontSize: 40, color: '#000000', align: 'center' },
-        qrCode: { x: 200, y: 400, size: 150 },
+        name: { x: 500, y: 350, fontSize: 40, color: '#000000', align: 'center' },
+        regNo: { x: 500, y: 450, fontSize: 20, color: '#000000', align: 'center' },
+        qrCode: { x: 250, y: 550, size: 100 },
     });
 
     const [selectedElement, setSelectedElement] = useState<DraggableElement | null>(null);
@@ -33,8 +37,28 @@ const CertificateLayoutEditorModal: React.FC<CertificateLayoutEditorModalProps> 
     const containerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
+        // When loading an initial layout, convert its ratios back to pixels for the editor view.
         if (initialLayout) {
-            setLayout(initialLayout);
+            setLayout({
+                name: {
+                    ...initialLayout.name,
+                    x: initialLayout.name.x * EDITOR_WIDTH,
+                    y: initialLayout.name.y * EDITOR_HEIGHT,
+                    fontSize: initialLayout.name.fontSize * EDITOR_HEIGHT,
+                },
+                regNo: {
+                    ...initialLayout.regNo,
+                    x: initialLayout.regNo.x * EDITOR_WIDTH,
+                    y: initialLayout.regNo.y * EDITOR_HEIGHT,
+                    fontSize: initialLayout.regNo.fontSize * EDITOR_HEIGHT,
+                },
+                qrCode: {
+                    ...initialLayout.qrCode,
+                    x: initialLayout.qrCode.x * EDITOR_WIDTH,
+                    y: initialLayout.qrCode.y * EDITOR_HEIGHT,
+                    size: initialLayout.qrCode.size * EDITOR_WIDTH,
+                },
+            });
         }
     }, [initialLayout]);
 
@@ -77,7 +101,7 @@ const CertificateLayoutEditorModal: React.FC<CertificateLayoutEditorModalProps> 
             window.removeEventListener('mouseup', handleMouseUp);
         };
     }, [isOpen, handleMouseMove, handleMouseUp]);
-
+    
     const handlePropertyChange = (
         element: 'name' | 'regNo',
         property: 'fontSize' | 'color' | 'align',
@@ -90,11 +114,36 @@ const CertificateLayoutEditorModal: React.FC<CertificateLayoutEditorModalProps> 
     };
     
     const handleQrCodeSizeChange = (value: string) => {
-        const newSize = parseInt(value) || 0; // FIX: Default to 0 if input is empty
+        const newSize = parseInt(value) || 0;
         setLayout(prev => ({
             ...prev,
             qrCode: { ...prev.qrCode, size: newSize },
         }));
+    };
+
+    const handleSaveWithScaling = () => {
+        // Convert the editor's absolute pixel values into proportional ratios before saving.
+        const scaledLayout: CertificateLayout = {
+            name: {
+                ...layout.name,
+                x: layout.name.x / EDITOR_WIDTH,
+                y: layout.name.y / EDITOR_HEIGHT,
+                fontSize: layout.name.fontSize / EDITOR_HEIGHT,
+            },
+            regNo: {
+                ...layout.regNo,
+                x: layout.regNo.x / EDITOR_WIDTH,
+                y: layout.regNo.y / EDITOR_HEIGHT,
+                fontSize: layout.regNo.fontSize / EDITOR_HEIGHT,
+            },
+            qrCode: {
+                ...layout.qrCode,
+                x: layout.qrCode.x / EDITOR_WIDTH,
+                y: layout.qrCode.y / EDITOR_HEIGHT,
+                size: layout.qrCode.size / EDITOR_WIDTH,
+            },
+        };
+        onSave(scaledLayout);
     };
 
     if (!isOpen) return null;
@@ -132,8 +181,8 @@ const CertificateLayoutEditorModal: React.FC<CertificateLayoutEditorModalProps> 
 
                     {/* Canvas */}
                     <div className="flex-1 bg-gray-200 p-4 overflow-auto flex items-center justify-center">
-                        <div ref={containerRef} className="relative shadow-lg" style={{ width: '1000px', height: '707px' }}>
-                            <img src={templateUrl} alt="Certificate Template" className="w-full h-full" />
+                        <div ref={containerRef} className="relative shadow-lg" style={{ width: `${EDITOR_WIDTH}px`, height: `${EDITOR_HEIGHT}px` }}>
+                            <img src={templateUrl} alt="Certificate Template" className="w-full h-full object-contain" />
                             
                             <div
                                 onMouseDown={(e) => handleMouseDown(e, 'name')}
@@ -182,7 +231,7 @@ const CertificateLayoutEditorModal: React.FC<CertificateLayoutEditorModalProps> 
 
                 <div className="flex justify-end p-4 border-t gap-3">
                     <Button variant="outline" onClick={onClose}>Cancel</Button>
-                    <Button onClick={() => onSave(layout)}>Save Layout</Button>
+                    <Button onClick={handleSaveWithScaling}>Save Layout</Button>
                 </div>
             </div>
         </div>

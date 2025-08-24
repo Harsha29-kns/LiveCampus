@@ -59,7 +59,7 @@ export default async function handler(req, res) {
         }
         const event = eventDoc.data();
         const templateImageUrl = event.certificateTemplateUrl;
-        const layout = event.certificateLayout;
+        const layout = event.certificateLayout; // This contains RATIOS (e.g., x: 0.5)
 
         if (!templateImageUrl) {
             return res.status(400).json({ error: 'No certificate template found for this event.' });
@@ -80,13 +80,14 @@ export default async function handler(req, res) {
         const canvas = createCanvas(templateImage.width, templateImage.height);
         const ctx = canvas.getContext('2d');
 
+        // Default layout (in ratios) for fallback if no custom layout is saved
         const defaultLayout = {
-            name: { x: canvas.width / 2, y: canvas.height / 2, fontSize: 80, color: 'black', align: 'center' },
-            regNo: { x: canvas.width / 2, y: canvas.height / 2 + 100, fontSize: 40, color: 'black', align: 'center' },
-            qrCode: { x: (canvas.width / 2) - 100, y: canvas.height - 300, size: 200 }
+            name: { x: 0.5, y: 0.5, fontSize: 0.05, color: 'black', align: 'center' },
+            regNo: { x: 0.5, y: 0.56, fontSize: 0.025, color: 'black', align: 'center' },
+            qrCode: { x: 0.5, y: 0.8, size: 0.15 }
         };
 
-        const finalLayout = {
+        const finalLayoutRatios = {
             name: { ...defaultLayout.name, ...layout?.name },
             regNo: { ...defaultLayout.regNo, ...layout?.regNo },
             qrCode: { ...defaultLayout.qrCode, ...layout?.qrCode }
@@ -113,32 +114,39 @@ export default async function handler(req, res) {
             
             ctx.drawImage(templateImage, 0, 0);
             
-            // --- MODIFICATION START ---
+            // --- APPLY SCALED LAYOUT ---
             
-            // Set text baseline to middle for vertical centering
-            ctx.textBaseline = 'middle';
+            // Convert ratios to final pixel values based on the ACTUAL template dimensions
+            const finalNameX = finalLayoutRatios.name.x * templateImage.width;
+            const finalNameY = finalLayoutRatios.name.y * templateImage.height;
+            const finalNameFontSize = finalLayoutRatios.name.fontSize * templateImage.height;
 
-            // Draw Student Name
-            ctx.fillStyle = finalLayout.name.color;
-            ctx.font = `${finalLayout.name.fontSize}px "Roboto", sans-serif`;
-            ctx.textAlign = finalLayout.name.align;
-            ctx.fillText(user.name, finalLayout.name.x, finalLayout.name.y);
+            const finalRegNoX = finalLayoutRatios.regNo.x * templateImage.width;
+            const finalRegNoY = finalLayoutRatios.regNo.y * templateImage.height;
+            const finalRegNoFontSize = finalLayoutRatios.regNo.fontSize * templateImage.height;
             
-            // Draw Registration Number
+            const finalQrX = finalLayoutRatios.qrCode.x * templateImage.width;
+            const finalQrY = finalLayoutRatios.qrCode.y * templateImage.height;
+            const finalQrSize = finalLayoutRatios.qrCode.size * templateImage.width;
+
+            // Draw elements using the calculated pixel values
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = finalLayoutRatios.name.color;
+            ctx.font = `${finalNameFontSize}px "Roboto", sans-serif`;
+            ctx.textAlign = finalLayoutRatios.name.align;
+            ctx.fillText(user.name, finalNameX, finalNameY);
+            
             if (attendee.regNo) {
-                ctx.fillStyle = finalLayout.regNo.color;
-                ctx.font = `${finalLayout.regNo.fontSize}px "Roboto", sans-serif`;
-                ctx.textAlign = finalLayout.regNo.align;
-                ctx.fillText(attendee.regNo, finalLayout.regNo.x, finalLayout.regNo.y);
+                ctx.fillStyle = finalLayoutRatios.regNo.color;
+                ctx.font = `${finalRegNoFontSize}px "Roboto", sans-serif`;
+                ctx.textAlign = finalLayoutRatios.regNo.align;
+                ctx.fillText(attendee.regNo, finalRegNoX, finalRegNoY);
             }
 
-            // Draw QR Code (adjusting coordinates to draw from the center)
             const qrImage = await loadImage(qrCodeImage);
-            const qrX = finalLayout.qrCode.x - (finalLayout.qrCode.size / 2);
-            const qrY = finalLayout.qrCode.y - (finalLayout.qrCode.size / 2);
-            ctx.drawImage(qrImage, qrX, qrY, finalLayout.qrCode.size, finalLayout.qrCode.size);
+            ctx.drawImage(qrImage, finalQrX - (finalQrSize / 2), finalQrY - (finalQrSize / 2), finalQrSize, finalQrSize);
 
-            // --- MODIFICATION END ---
+            // --- END OF FIX ---
 
             const buffer = canvas.toBuffer('image/png');
             const dataUri = `data:image/png;base64,${buffer.toString('base64')}`;

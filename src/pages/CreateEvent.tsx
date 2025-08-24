@@ -212,8 +212,6 @@ const CreateEvent: React.FC = () => {
                 eventType: formData.eventType,
                 eventFee: formData.eventType === 'paid' ? formData.eventFee : undefined,
                 upiId: formData.eventType === 'paid' ? formData.upiId : undefined,
-                presidentPhone: formData.presidentPhone || undefined,
-                vicePresidentPhone: formData.vicePresidentPhone || undefined,
                 certificateTemplateUrl: certificateUrl || undefined,
                 certificateLayout: formData.certificateLayout || undefined,
             };
@@ -342,6 +340,9 @@ const CreateEvent: React.FC = () => {
 
                     <div className="p-6 bg-white rounded-lg border shadow-sm">
                         <h2 className="text-lg font-semibold text-gray-800 mb-4">Certificate Template (Optional)</h2>
+                        <p className="text-sm text-gray-500 mb-2">
+                          Note: Recommended dimensions are 2048x1583px.
+                        </p>
                         <label htmlFor="certificate-upload" className="relative cursor-pointer bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg p-6 flex flex-col items-center justify-center text-center hover:border-indigo-500 transition-colors">
                             {(certificateFile || formData.certificateTemplateUrl) ? (
                                 <img src={certificateFile ? URL.createObjectURL(certificateFile) : formData.certificateTemplateUrl} alt="Certificate Preview" className="h-32 w-full rounded-md object-cover" />
