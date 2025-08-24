@@ -7,6 +7,9 @@ import { v2 as cloudinary } from 'cloudinary';
 
 // --- Configure Cloudinary ---
 // Uses environment variables: CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET
+if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+    throw new Error('Cloudinary environment variables are not set.');
+}
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
@@ -27,7 +30,7 @@ if (getApps().length === 0) {
     });
 }
 
-// You only need Firestore from Firebase now
+// You only need Firestore from Firebase for this function
 const db = getFirestore();
 
 // --- Nodemailer Transport ---
@@ -82,7 +85,13 @@ export default async function handler(req, res) {
         };
 
         for (const attendee of attendees) {
-            // 1. Generate a unique ID for the certificate
+            // VALIDATION: Skip attendee if email is missing to prevent a crash
+            if (!attendee.email) {
+                console.warn(`Skipping attendee without an email: ${attendee.name || 'Unknown'}`);
+                continue; // Move to the next attendee
+            }
+
+            // 1. Generate a unique ID for the certificate in Firestore
             const certificateRef = db.collection('certificates').doc();
             const certificateId = certificateRef.id;
 
@@ -116,12 +125,12 @@ export default async function handler(req, res) {
             const dataUri = `data:image/png;base64,${buffer.toString('base64')}`;
             
             const uploadResult = await cloudinary.uploader.upload(dataUri, {
-                folder: `certificates/${eventId}`, // Organizes files in Cloudinary
-                public_id: attendee.userId,      // Sets a specific file name
+                folder: `certificates/${eventId}`,
+                public_id: attendee.userId,
                 overwrite: true
             });
             
-            const downloadUrl = uploadResult.secure_url; // Get the secure URL from Cloudinary
+            const downloadUrl = uploadResult.secure_url;
 
             // 5. Save certificate metadata to Firestore
             await certificateRef.set({
@@ -131,7 +140,7 @@ export default async function handler(req, res) {
                 eventId: eventId,
                 eventName: event.title,
                 issuedAt: new Date().toISOString(),
-                certificateUrl: downloadUrl, // Use the new Cloudinary URL
+                certificateUrl: downloadUrl,
             });
 
             // 6. Send the certificate email
@@ -141,14 +150,14 @@ export default async function handler(req, res) {
                 subject: `Your Certificate for ${event.title}`,
                 html: `
                     <p>Hello ${attendee.name},</p>
-                    <p>Congratulations on attending "${event.title}"! Please find your certificate attached.</p>
-                    <p>You can also download it from your profile on LiveCampus.</p>
-                    <a href="${downloadUrl}">Download Your Certificate</a>
+                    <p>Congratulations on attending "${event.title}"! Your certificate is ready.</p>
+                    <p>You can download it from your profile on LiveCampus or by clicking the link below.</p>
+                    <a href="${downloadUrl}" style="display: inline-block; padding: 10px 20px; color: white; background-color: #007bff; text-decoration: none; border-radius: 5px;">Download Your Certificate</a>
                 `,
             });
         }
 
-        res.status(200).json({ success: true, message: 'Certificates generated and sent.' });
+        res.status(200).json({ success: true, message: 'Certificates generated and sent successfully.' });
 
     } catch (error) {
         console.error('Error generating certificates:', error);
