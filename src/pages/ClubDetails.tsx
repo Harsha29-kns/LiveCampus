@@ -316,13 +316,6 @@ const ClubDetails: React.FC = () => {
                                 <p className="text-neutral-700">{club.phoneNo}</p>
                             </div>
                         </div>
-                        <div className="flex items-start">
-                            <Users className="w-5 h-5 text-neutral-500 mt-0.5 mr-3" />
-                            <div>
-                                <h3 className="font-medium text-neutral-900">Membership</h3>
-                                <p className="text-neutral-700">{club.memberCount} active members</p>
-                            </div>
-                        </div>
                     </CardBody>
                 </Card>
                 {isStudent && (

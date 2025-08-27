@@ -223,7 +223,7 @@ const Dashboard: React.FC = () => {
                     {club.logo ? <img src={club.logo} alt={club.name} className="w-8 h-8 rounded-full object-cover mr-3" /> : <div className="w-8 h-8 rounded-full bg-secondary-100 flex items-center justify-center mr-3"><Star size={14} className="text-secondary-600"/></div>}
                     <span className="font-medium text-neutral-700">{club.name}</span>
                   </div>
-                  <Badge variant='neutral' size='sm'>{club.memberCount} members</Badge>
+                  
                 </div>
               ))}
             </CardBody>
