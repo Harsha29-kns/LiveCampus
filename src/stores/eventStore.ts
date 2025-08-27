@@ -139,8 +139,9 @@ export const useEventStore = create<EventState>((set, get) => ({
         status: 'approved',
         updatedAt: new Date().toISOString(),
       });
-      toast.success('Event approved!');
-
+      
+      // Consolidated toast logic
+      let emailSuccess = true;
       if (eventToApprove.organizerType === 'club' || eventToApprove.organizerType === 'faculty') {
         const { fetchUsers } = useAuthStore.getState();
         const allUsers = await fetchUsers();
@@ -153,12 +154,17 @@ export const useEventStore = create<EventState>((set, get) => ({
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ event: eventToApprove, students }),
             });
-            toast.success('Approval notification sent to students!');
           } catch (emailError) {
-            toast.error('Event approved, but mail is not sent.');
+            emailSuccess = false;
             console.error('Email sending error:', emailError);
           }
         }
+      }
+      
+      if(emailSuccess) {
+          toast.success('Event approved and notifications sent!');
+      } else {
+          toast.error('Event approved, but failed to send notifications.');
       }
 
       const updatedEvent = get().getEventById(id);
