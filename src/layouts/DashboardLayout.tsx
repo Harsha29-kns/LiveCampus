@@ -50,25 +50,26 @@ const DashboardLayout: React.FC = () => {
   const profileLabel = user?.role === 'club' ? 'Club Profile' : 'My Profile';
 
   const baseMenuItems = [
-    { to: '/', icon: <Home size={20} />, label: 'Dashboard', roles: ['admin','faculty','student','club'] },
-    { to: '/events', icon: <Calendar size={20} />, label: 'Events', roles: ['admin','faculty','student','club'] },
-    { to: '/clubs', icon: <Users size={20} />, label: 'Clubs', roles: ['admin','faculty','student','club'] },
-    { to: profileLink, icon: profileIcon, label: profileLabel, roles: ['admin','faculty','student','club'] },
-    { to: '/leaderboard', icon: <Trophy size={20} />, label: 'Leaderboard', roles: ['admin','faculty','student','club'] },
+    { to: '/', icon: <Home size={20} />, label: 'Dashboard', roles: ['admin', 'faculty', 'student', 'club'] },
+    { to: '/public-events', icon: <Calendar size={20} />, label: 'Public Events', roles: ['admin', 'faculty', 'student', 'club'] },
+    { to: '/events', icon: <Calendar size={20} />, label: 'My Events', roles: ['admin', 'faculty', 'student', 'club'] },
+    { to: '/clubs', icon: <Users size={20} />, label: 'Clubs', roles: ['admin', 'faculty', 'student', 'club'] },
+    { to: profileLink, icon: profileIcon, label: profileLabel, roles: ['admin', 'faculty', 'student', 'club'] },
+    { to: '/leaderboard', icon: <Trophy size={20} />, label: 'Leaderboard', roles: ['admin', 'faculty', 'student', 'club'] },
   ];
 
   const roleSpecificItems: any = {
     admin: [
       { to: '/admin/users', icon: <Settings size={20} />, label: 'Admin Panel', roles: ['admin'] },
-      
+
     ],
     club: [
-      { to: '/attendance', icon: <ClipboardCheck size={20} />, label: 'Attendance', roles: ['club','faculty'] },
-      { to: '/marks', icon: <BarChart size={20} />, label: 'Marks', roles: ['club','faculty'] },
+      { to: '/attendance', icon: <ClipboardCheck size={20} />, label: 'Attendance', roles: ['club', 'faculty'] },
+      { to: '/marks', icon: <BarChart size={20} />, label: 'Marks', roles: ['club', 'faculty'] },
     ],
     faculty: [
-      { to: '/attendance', icon: <ClipboardCheck size={20} />, label: 'Attendance', roles: ['club','faculty'] },
-      { to: '/marks', icon: <BarChart size={20} />, label: 'Marks', roles: ['club','faculty'] },
+      { to: '/attendance', icon: <ClipboardCheck size={20} />, label: 'Attendance', roles: ['club', 'faculty'] },
+      { to: '/marks', icon: <BarChart size={20} />, label: 'Marks', roles: ['club', 'faculty'] },
     ],
   };
 
@@ -97,7 +98,7 @@ const DashboardLayout: React.FC = () => {
 
   return (
     <div className="min-h-screen flex bg-slate-100">
-      
+
       {/* ---- Desktop Sidebar ---- */}
       <div className="hidden lg:flex lg:flex-col w-64 bg-slate-800">
         <div className="h-16 flex items-center justify-center border-b border-slate-700">

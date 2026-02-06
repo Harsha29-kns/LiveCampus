@@ -1,13 +1,15 @@
 // src/pages/AdminUserManagement.tsx
 import React, { useEffect, useState } from 'react';
+import { Info, AlertTriangle } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useClubStore } from '../stores/clubStore';
 import Button from '../components/ui/Button';
 import { Card, CardBody } from '../components/ui/Card';
 import { db } from '../firebaseConfig';
-import { doc, updateDoc, collection, getDocs, deleteDoc } from 'firebase/firestore';
+import { doc, updateDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
+import CSVUploadSection from '../components/CSVUploadSection';
 
 const AdminUserManagement: React.FC = () => {
     const { fetchUsers, deleteUser, addUser } = useAuthStore();
@@ -33,7 +35,7 @@ const AdminUserManagement: React.FC = () => {
         };
         loadData();
     }, [fetchUsers, fetchClubs]);
-    
+
     const uploadToCloudinary = async (file: File) => {
         const formData = new FormData();
         formData.append('file', file);
@@ -127,7 +129,26 @@ const AdminUserManagement: React.FC = () => {
             toast.error('Failed to send rejection email.');
         }
     };
-    
+
+    const handleMigration = async () => {
+        if (!window.confirm("Run data migration? This will update existing events and clubs.")) return;
+        setIsLoading(true);
+        try {
+            const { migrateData } = await import('../utils/migration');
+            const result = await migrateData();
+            if (result.success) {
+                toast.success(`Migration completed. Updated ${result.count || 0} documents.`);
+            } else {
+                toast.error("Migration failed.");
+            }
+        } catch (e) {
+            console.error(e);
+            toast.error("Error during migration");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center min-h-[60vh]">
@@ -173,6 +194,26 @@ const AdminUserManagement: React.FC = () => {
                     </form>
                 </CardBody>
             </Card>
+
+            <Card>
+                <CardBody>
+                    <div className="flex items-start gap-4 mb-4">
+                        <div className="bg-blue-100 p-2 rounded-full text-blue-600">
+                            <Info size={24} />
+                        </div>
+                        <div>
+                            <h3 className="font-semibold text-lg text-primary-700">Bulk Import</h3>
+                            <p className="text-neutral-600 mb-2">Upload a CSV file to create clubs and link faculty members automatically.</p>
+                            <div className="bg-neutral-50 p-3 rounded border text-sm text-neutral-700 font-mono">
+                                <strong>Expected CSV Format:</strong><br />
+                                <span className="text-neutral-500">Club Name, Club Email, Faculty ID, Faculty Name, Faculty Email</span>
+                            </div>
+                        </div>
+                    </div>
+                </CardBody>
+            </Card>
+
+            <CSVUploadSection />
 
             <Card>
                 <CardBody>
@@ -332,6 +373,12 @@ const AdminUserManagement: React.FC = () => {
                                 <div className="text-center">
                                     <div className="font-bold text-lg">{club.name}</div>
                                     <div className="text-neutral-500 text-sm mb-2">{club.description}</div>
+                                    {(!club.facultyMembers || club.facultyMembers.length === 0) && (
+                                        <div className="flex items-center justify-center gap-1 text-red-500 text-xs font-semibold mt-1 bg-red-50 py-1 px-2 rounded-full border border-red-100">
+                                            <AlertTriangle size={12} />
+                                            <span>No Faculty Assigned</span>
+                                        </div>
+                                    )}
                                 </div>
                                 {editingClubId === club.id && (
                                     <div className="w-full mt-4 flex flex-col gap-2 items-center bg-neutral-50 p-3 rounded-lg border">
@@ -377,6 +424,18 @@ const AdminUserManagement: React.FC = () => {
                         {clubs.length === 0 && (
                             <div className="text-neutral-500 text-center py-8 col-span-full">No clubs found.</div>
                         )}
+                    </div>
+                </CardBody>
+            </Card>
+            <Card>
+                <CardBody>
+                    <h2 className="font-semibold text-lg text-primary-700 mb-4">System Maintenance</h2>
+                    <div className="flex items-center justify-between bg-neutral-50 p-4 rounded-lg border">
+                        <div>
+                            <h3 className="font-bold text-neutral-800">Data Migration</h3>
+                            <p className="text-sm text-neutral-600">Update existing database records to support new faculty approval features.</p>
+                        </div>
+                        <Button onClick={handleMigration} variant="secondary">Run Migration</Button>
                     </div>
                 </CardBody>
             </Card>

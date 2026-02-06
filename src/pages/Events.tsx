@@ -15,7 +15,7 @@ const Events: React.FC = () => {
   const { user } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
-  
+
   const [searchTerm, setSearchTerm] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
   const [filteredEvents, setFilteredEvents] = useState<Event[]>([]);
@@ -32,10 +32,29 @@ const Events: React.FC = () => {
   useEffect(() => {
     if (events.length > 0) {
       let filtered = [...events];
-      
+
+      // Default visibility rule:
+      // - Admin: see all
+      // - Student/Guest: see only 'approved'
+      // - Club: see 'approved' + own 'pending' events
+      // - Faculty: see 'approved' + 'pending' events from linked clubs
+
+      if (!user || user.role === 'student') {
+        filtered = filtered.filter(event => event.status === 'approved');
+      } else if (user.role === 'club') {
+        filtered = filtered.filter(event =>
+          (event.organizerId === user.clubId && event.organizerType === 'club')
+        );
+      } else if (user.role === 'faculty') {
+        filtered = filtered.filter(event =>
+          (event.organizerType === 'club' && user.linkedClubIds?.includes(event.organizerId))
+        );
+      }
+      // Admin sees everything (filtered later by search/status/etc)
+
       // Apply search filter
       if (searchTerm) {
-        filtered = filtered.filter(event => 
+        filtered = filtered.filter(event =>
           event.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
           event.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
           event.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -43,17 +62,17 @@ const Events: React.FC = () => {
           event.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()))
         );
       }
-      
-      // Apply status filter
+
+      // Apply status filter (if explicitly selected)
       if (filters.status !== 'all') {
         filtered = filtered.filter(event => event.status === filters.status);
       }
-      
+
       // Apply organizer filter
       if (filters.organizer !== 'all') {
         filtered = filtered.filter(event => event.organizerType === filters.organizer);
       }
-      
+
       // Apply timeframe filter
       const now = new Date();
       if (filters.timeframe === 'upcoming') {
@@ -64,30 +83,16 @@ const Events: React.FC = () => {
         const today = new Date(now.setHours(0, 0, 0, 0));
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
-        
+
         filtered = filtered.filter(event => {
           const eventStart = new Date(event.startDate);
           return eventStart >= today && eventStart < tomorrow;
         });
       }
-      
-      // If filtering by pending and user is not admin, show only their events
-      if (
-        filters.status === 'pending' &&
-        user &&
-        (user.role === 'club' || user.role === 'faculty')
-      ) {
-        filtered = filtered.filter(
-          event =>
-            event.status === 'pending' &&
-            event.organizerId === (user.role === 'club' ? user.clubId : user.id) &&
-            event.organizerType === user.role
-        );
-      }
 
       // Sort by date (upcoming first)
       filtered.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
-      
+
       setFilteredEvents(filtered);
     }
   }, [events, searchTerm, filters, user]);
@@ -124,7 +129,7 @@ const Events: React.FC = () => {
         <h1 className="text-2xl font-bold text-neutral-900">Events</h1>
         <div className="mt-2 sm:mt-0">
           {(user?.role === 'admin' || user?.role === 'faculty' || user?.role === 'club') && (
-            <Button 
+            <Button
               onClick={() => navigate('/events/create')}
               leftIcon={<Plus size={16} />}
             >
@@ -133,7 +138,7 @@ const Events: React.FC = () => {
           )}
         </div>
       </div>
-      
+
       {/* Search and Filters */}
       <div className="bg-white rounded-lg shadow-sm p-4">
         <div className="flex flex-col md:flex-row md:items-center gap-3">
@@ -167,7 +172,7 @@ const Events: React.FC = () => {
             )}
           </div>
         </div>
-        
+
         {filterOpen && (
           <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-neutral-200">
             <div>
@@ -177,7 +182,7 @@ const Events: React.FC = () => {
               <select
                 className="w-full rounded-md border-neutral-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
                 value={filters.status}
-                onChange={(e) => setFilters({...filters, status: e.target.value})}
+                onChange={(e) => setFilters({ ...filters, status: e.target.value })}
               >
                 <option value="all">All Statuses</option>
                 <option value="approved">Approved</option>
@@ -186,7 +191,7 @@ const Events: React.FC = () => {
                 <option value="cancelled">Cancelled</option>
               </select>
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-neutral-700 mb-1">
                 Organizer
@@ -194,7 +199,7 @@ const Events: React.FC = () => {
               <select
                 className="w-full rounded-md border-neutral-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
                 value={filters.organizer}
-                onChange={(e) => setFilters({...filters, organizer: e.target.value})}
+                onChange={(e) => setFilters({ ...filters, organizer: e.target.value })}
               >
                 <option value="all">All Organizers</option>
                 <option value="admin">Administration</option>
@@ -202,7 +207,7 @@ const Events: React.FC = () => {
                 <option value="club">Clubs</option>
               </select>
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-neutral-700 mb-1">
                 Timeframe
@@ -210,7 +215,7 @@ const Events: React.FC = () => {
               <select
                 className="w-full rounded-md border-neutral-300 shadow-sm focus:border-primary-500 focus:ring-primary-500"
                 value={filters.timeframe}
-                onChange={(e) => setFilters({...filters, timeframe: e.target.value})}
+                onChange={(e) => setFilters({ ...filters, timeframe: e.target.value })}
               >
                 <option value="upcoming">Upcoming</option>
                 <option value="today">Today</option>
@@ -221,7 +226,7 @@ const Events: React.FC = () => {
           </div>
         )}
       </div>
-      
+
       {/* Events List */}
       <div className="space-y-4">
         {isLoading ? (
@@ -242,8 +247,8 @@ const Events: React.FC = () => {
           ))
         ) : visibleEvents.length > 0 ? (
           visibleEvents.map((event) => (
-            <Card 
-              key={event.id} 
+            <Card
+              key={event.id}
               className="transition-transform hover:-translate-y-1 hover:shadow-md"
               hoverable
               onClick={() => navigate(`/events/${event.id}`)}
@@ -251,9 +256,9 @@ const Events: React.FC = () => {
               <CardBody className="flex flex-col md:flex-row gap-4">
                 {event.image ? (
                   <div className="w-full md:w-48 h-32 rounded-md overflow-hidden">
-                    <img 
-                      src={event.image} 
-                      alt={event.title} 
+                    <img
+                      src={event.image}
+                      alt={event.title}
                       className="w-full h-full object-cover"
                     />
                   </div>
@@ -262,7 +267,7 @@ const Events: React.FC = () => {
                     <Calendar className="h-12 w-12 text-primary-500" />
                   </div>
                 )}
-                
+
                 <div className="flex-grow">
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between">
                     <h3 className="text-lg font-semibold text-neutral-900">{event.title}</h3>
@@ -272,15 +277,15 @@ const Events: React.FC = () => {
                       </Badge>
                     </div>
                   </div>
-                  
+
                   <p className="text-sm text-neutral-500 mt-1">
                     {format(parseISO(event.startDate), 'MMM d, yyyy • h:mm a')} • {event.location}
                   </p>
-                  
+
                   <p className="text-sm text-neutral-700 mt-2 line-clamp-2">
                     {event.description}
                   </p>
-                  
+
                   <div className="flex flex-wrap items-center justify-between mt-3">
                     <div className="flex items-center">
                       <span className="text-xs text-neutral-500 mr-2">Organized by:</span>
@@ -288,7 +293,7 @@ const Events: React.FC = () => {
                         {event.organizerName}
                       </Badge>
                     </div>
-                    
+
                     <div className="flex items-center mt-2 md:mt-0">
                       <span className="text-xs text-neutral-500 mr-2">
                         {event.registeredCount} registered
@@ -314,9 +319,9 @@ const Events: React.FC = () => {
                   <>
                     No events match your current filters. Try adjusting your search criteria.
                     <br />
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
+                    <Button
+                      variant="outline"
+                      size="sm"
                       className="mt-2"
                       onClick={clearFilters}
                     >
@@ -328,7 +333,7 @@ const Events: React.FC = () => {
                 )}
               </p>
               {(user?.role === 'admin' || user?.role === 'faculty' || user?.role === 'club') && (
-                <Button 
+                <Button
                   onClick={() => navigate('/events/create')}
                 >
                   Create Event

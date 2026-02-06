@@ -16,7 +16,10 @@ export interface User {
   department?: string;
   year?: number;
   clubId?: string;
+  linkedClubIds?: string[]; // For faculty: array of club IDs they're associated with
+  club?: Club; // For club users: key set in authStore.checkAuth
   points?: number;
+  mustChangePassword?: boolean; // If true, user must change password on next login
   createdAt: string;
   updatedAt: string;
 }
@@ -35,6 +38,10 @@ export interface Event {
   organizerName: string;
   organizerType: 'club' | 'faculty' | 'admin';
   status: 'pending' | 'approved' | 'rejected' | 'cancelled' | 'completed';
+  facultyApprovalStatus?: 'pending' | 'approved' | 'rejected'; // Faculty approval status
+  facultyApprovedBy?: string; // Faculty user ID who approved/rejected
+  facultyApprovedAt?: string; // Timestamp of faculty approval/rejection
+  facultyApprovalNotes?: string; // Notes from faculty on approval/rejection
   capacity?: number;
   registeredCount: number;
   image?: string;
@@ -47,7 +54,12 @@ export interface Event {
   presidentPhone?: string;
   vicePresidentPhone?: string;
   certificateTemplateUrl?: string; // Field for the certificate template
-  certificateLayout?: CertificateLayout; // <-- ADD THIS NEW FIELD
+  certificateLayout?: CertificateLayout;
+  category: 'hackathon' | 'gateexam' | 'sports' | 'algorithms' | 'other';
+  customCategory?: string;
+  resources?: string[]; // e.g., 'mic', 'speaker', 'ac', 'powerbackup', 'water'
+  rejectionReason?: string;
+  rejectedBy?: string; // User ID who rejected
 }
 
 export interface Club {
@@ -61,6 +73,7 @@ export interface Club {
   vicePresidentId?: string;
   facultyAdvisor: string;
   facultyAdvisorId: string;
+  facultyMembers: string[]; // Array of faculty user IDs linked to this club
   phoneNo?: string;
   memberCount: number
   points?: number;
@@ -88,4 +101,12 @@ export interface Notification {
   read: boolean;
   userId: string;
   createdAt: string;
+}
+
+export interface ClubFacultyCSVRow {
+  clubName: string;
+  clubEmail: string; // Added field
+  facultyId: string;
+  facultyName: string;
+  facultyEmail: string;
 }

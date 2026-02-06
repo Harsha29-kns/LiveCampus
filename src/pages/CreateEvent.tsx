@@ -1,8 +1,11 @@
 import React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, MapPin, Users, ImageUp, Tag, Calendar, Clock, Save, DollarSign, Phone, Award, Settings } from 'lucide-react';
+import { ArrowLeft, MapPin, Users, ImageUp, Tag, Calendar, Clock, Save, DollarSign, Phone, Award, Settings, Info } from 'lucide-react';
 import { useEventStore } from '../stores/eventStore';
 import { useAuthStore } from '../stores/authStore';
+import { useClubStore } from '../stores/clubStore';
+import { db } from '../firebaseConfig';
+import { doc, getDoc } from 'firebase/firestore';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { Event, CertificateLayout } from '../types';
@@ -17,6 +20,7 @@ const CreateEvent: React.FC = () => {
     const navigate = useNavigate();
     const { createEvent, getEventById, updateEvent, events, fetchEvents } = useEventStore();
     const { user } = useAuthStore();
+    const { clubs, fetchClubs } = useClubStore();
 
     const [isSubmitting, setIsSubmitting] = React.useState(false);
     const [isLoading, setIsLoading] = React.useState(true);
@@ -34,13 +38,16 @@ const CreateEvent: React.FC = () => {
         capacity: '',
         image: '',
         tags: '',
-        eventType: 'free',
+        eventType: 'free' as 'free' | 'paid',
         eventFee: '',
         upiId: '',
         presidentPhone: '',
         vicePresidentPhone: '',
         certificateTemplateUrl: '',
         certificateLayout: null as CertificateLayout | null,
+        category: 'other' as 'hackathon' | 'gateexam' | 'sports' | 'algorithms' | 'other',
+        customCategory: '',
+        resources: [] as string[],
     });
     const [imageFile, setImageFile] = React.useState<File | null>(null);
     const [certificateFile, setCertificateFile] = React.useState<File | null>(null);
@@ -49,6 +56,8 @@ const CreateEvent: React.FC = () => {
 
     React.useEffect(() => {
         const loadEventData = async () => {
+            if (clubs.length === 0) fetchClubs();
+
             if (isEditMode && id) {
                 if (events.length === 0) {
                     await fetchEvents();
@@ -69,13 +78,16 @@ const CreateEvent: React.FC = () => {
                         capacity: event.capacity ? String(event.capacity) : '',
                         image: event.image || '',
                         tags: event.tags ? event.tags.join(', ') : '',
-                        eventType: event.eventType || 'free',
+                        eventType: (event.eventType as 'free' | 'paid') || 'free',
                         eventFee: event.eventFee || '',
                         upiId: event.upiId || '',
                         presidentPhone: event.presidentPhone || '',
                         vicePresidentPhone: event.vicePresidentPhone || '',
                         certificateTemplateUrl: event.certificateTemplateUrl || '',
                         certificateLayout: event.certificateLayout || null,
+                        category: event.category || 'other',
+                        customCategory: event.customCategory || '',
+                        resources: event.resources || [],
                     });
                 } else {
                     toast.error("Event not found for editing.");
@@ -86,14 +98,30 @@ const CreateEvent: React.FC = () => {
         };
 
         loadEventData();
-    }, [isEditMode, id, getEventById, navigate, events, fetchEvents]);
+    }, [isEditMode, id, getEventById, navigate, events, fetchEvents, clubs, fetchClubs]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+        setFormData(prev => ({ ...prev, [name]: value as any }));
         if (errors[name]) {
-            setErrors(prev => ({ ...prev, [name]: undefined }));
+            setErrors(prev => {
+                const newErrors = { ...prev };
+                delete newErrors[name];
+                return newErrors;
+            });
         }
+    };
+
+    const handleResourceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { value, checked } = e.target;
+        setFormData(prev => {
+            const currentResources = prev.resources || [];
+            if (checked) {
+                return { ...prev, resources: [...currentResources, value] };
+            } else {
+                return { ...prev, resources: currentResources.filter(r => r !== value) };
+            }
+        });
     };
 
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -123,7 +151,7 @@ const CreateEvent: React.FC = () => {
         });
         const data = await res.json();
         if (!res.ok) {
-           throw new Error(data.error.message || 'Cloudinary upload failed');
+            throw new Error(data.error.message || 'Cloudinary upload failed');
         }
         return data.secure_url;
     };
@@ -182,6 +210,18 @@ const CreateEvent: React.FC = () => {
             return;
         }
 
+        if (user.role === 'club' && !isEditMode) {
+            const myClub = clubs.find(c => c.id === user.clubId);
+            if (!myClub) {
+                toast.error("Club information not found.");
+                return;
+            }
+            if (!myClub.facultyMembers || myClub.facultyMembers.length === 0) {
+                toast.error("Your club does not have a Faculty Advisor assigned. You cannot create events until one is linked.");
+                return;
+            }
+        }
+
         setIsSubmitting(true);
         const uploadToastId = (imageFile || certificateFile) ? toast.loading('Uploading files...') : null;
 
@@ -214,6 +254,9 @@ const CreateEvent: React.FC = () => {
                 upiId: formData.eventType === 'paid' ? formData.upiId : undefined,
                 certificateTemplateUrl: certificateUrl || undefined,
                 certificateLayout: formData.certificateLayout || undefined,
+                category: formData.category,
+                customCategory: formData.category === 'other' ? formData.customCategory : undefined,
+                resources: formData.category === 'hackathon' ? formData.resources : undefined,
             };
 
             if (isEditMode && id) {
@@ -224,11 +267,37 @@ const CreateEvent: React.FC = () => {
                     ...eventData,
                     organizerId: user.role === 'club' ? user.clubId! : user.id,
                     organizerName: user.name,
-                    organizerType: user.role,
+                    organizerType: user.role as 'club' | 'faculty' | 'admin',
                     createdBy: user.id,
-                    clubId: user.role === 'club' ? user.clubId : undefined,
                 };
-                await createEvent(newEventData);
+                const createdEvent = await createEvent(newEventData);
+
+                if (createdEvent && user.role === 'club' && user.clubId) {
+                    const myClub = clubs.find(c => c.id === user.clubId);
+                    if (myClub && myClub.facultyMembers) {
+                        for (const facultyId of myClub.facultyMembers) {
+                            try {
+                                const facultyDoc = await getDoc(doc(db, 'users', facultyId));
+                                if (facultyDoc.exists()) {
+                                    const facultyData = facultyDoc.data();
+                                    if (facultyData.email) {
+                                        await fetch('https://live-campus.vercel.app/api/send-workflow-notification', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({
+                                                type: 'faculty_approval_needed',
+                                                recipient: { name: facultyData.name, email: facultyData.email },
+                                                event: createdEvent
+                                            })
+                                        });
+                                    }
+                                }
+                            } catch (err) {
+                                console.error('Failed to notify faculty', err);
+                            }
+                        }
+                    }
+                }
             }
             navigate('/events');
 
@@ -262,6 +331,19 @@ const CreateEvent: React.FC = () => {
                     <p className="text-gray-600 mt-1">Fill in the details below to {isEditMode ? 'update your' : 'schedule a new'} event.</p>
                 </div>
 
+                {user?.role === 'club' && !isEditMode && (
+                    <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-md flex items-start gap-3">
+                        <Info className="flex-shrink-0 text-blue-500 mt-0.5" />
+                        <div>
+                            <h3 className="text-sm font-bold text-blue-900">Faculty Approval Required</h3>
+                            <p className="text-sm text-blue-800 mt-1">
+                                New events will be submitted for <strong>Faculty Approval</strong>.
+                                Your assigned Faculty Advisor must approve the event before it proceeds to Admin review or becomes visible.
+                            </p>
+                        </div>
+                    </div>
+                )}
+
                 {/* Main Form Layout */}
                 <div className="lg:grid lg:grid-cols-3 lg:gap-8">
                     {/* Left Column */}
@@ -270,6 +352,53 @@ const CreateEvent: React.FC = () => {
                             <h2 className="text-lg font-semibold text-gray-800 mb-4">Core Details</h2>
                             <div className="space-y-4">
                                 <Input label="Event Title" name="title" placeholder="e.g., Annual Tech Fest" value={formData.title} onChange={handleChange} error={errors.title} required />
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Event Category</label>
+                                    <select
+                                        name="category"
+                                        value={formData.category}
+                                        onChange={handleChange}
+                                        className="w-full p-2 border rounded-md shadow-sm border-gray-300 focus:ring-primary-500 focus:border-primary-500"
+                                    >
+                                        <option value="hackathon">Hackathon</option>
+                                        <option value="gateexam">Gate Exam</option>
+                                        <option value="sports">Sports</option>
+                                        <option value="algorithms">Algorithms</option>
+                                        <option value="other">Other</option>
+                                    </select>
+                                </div>
+
+                                {formData.category === 'other' && (
+                                    <Input
+                                        label="Specify Category"
+                                        name="customCategory"
+                                        placeholder="e.g., Cultural"
+                                        value={formData.customCategory}
+                                        onChange={handleChange}
+                                        required
+                                    />
+                                )}
+
+                                {formData.category === 'hackathon' && (
+                                    <div className="bg-gray-50 p-4 rounded-md border border-gray-200">
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Required Resources</label>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {['Mic', 'Speaker', 'AC', 'Power Backup', 'Water Supply'].map((res) => (
+                                                <label key={res} className="flex items-center space-x-2 cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        value={res}
+                                                        checked={formData.resources.includes(res)}
+                                                        onChange={handleResourceChange}
+                                                        className="rounded text-primary-600 focus:ring-primary-500"
+                                                    />
+                                                    <span className="text-sm text-gray-700">{res}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                                     <textarea name="description" rows={5} placeholder="Provide a detailed description of your event..." value={formData.description} onChange={handleChange as any} className={`w-full p-2 border rounded-md shadow-sm ${errors.description ? 'border-red-500' : 'border-gray-300'}`} required />
@@ -281,30 +410,30 @@ const CreateEvent: React.FC = () => {
                         <div className="p-6 bg-white rounded-lg border shadow-sm">
                             <h2 className="text-lg font-semibold text-gray-800 mb-4">Event Schedule</h2>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <Input type="date" label="Start Date" name="startDate" value={formData.startDate} onChange={handleChange} error={errors.startDate} required leftIcon={<Calendar size={16}/>} />
-                                <Input type="time" label="Start Time" name="startTime" value={formData.startTime} onChange={handleChange} error={errors.startTime} required leftIcon={<Clock size={16}/>} />
-                                <Input type="date" label="End Date" name="endDate" value={formData.endDate} onChange={handleChange} error={errors.endDate} required leftIcon={<Calendar size={16}/>} />
-                                <Input type="time" label="End Time" name="endTime" value={formData.endTime} onChange={handleChange} error={errors.endTime} required leftIcon={<Clock size={16}/>} />
+                                <Input type="date" label="Start Date" name="startDate" value={formData.startDate} onChange={handleChange} error={errors.startDate} required leftIcon={<Calendar size={16} />} />
+                                <Input type="time" label="Start Time" name="startTime" value={formData.startTime} onChange={handleChange} error={errors.startTime} required leftIcon={<Clock size={16} />} />
+                                <Input type="date" label="End Date" name="endDate" value={formData.endDate} onChange={handleChange} error={errors.endDate} required leftIcon={<Calendar size={16} />} />
+                                <Input type="time" label="End Time" name="endTime" value={formData.endTime} onChange={handleChange} error={errors.endTime} required leftIcon={<Clock size={16} />} />
                             </div>
                         </div>
-                         <div className="p-6 bg-white rounded-lg border shadow-sm">
+                        <div className="p-6 bg-white rounded-lg border shadow-sm">
                             <h2 className="text-lg font-semibold text-gray-800 mb-4">Registration Window</h2>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                 <Input 
-                                    label="Registration Starts On" 
-                                    name="registrationStartDate" 
-                                    type="datetime-local" 
-                                    value={formData.registrationStartDate} 
-                                    onChange={handleChange} 
+                                <Input
+                                    label="Registration Starts On"
+                                    name="registrationStartDate"
+                                    type="datetime-local"
+                                    value={formData.registrationStartDate}
+                                    onChange={handleChange}
                                     error={errors.registrationStartDate}
                                     helperText="Note: When students can start registering."
                                 />
-                                 <Input 
-                                    label="Registration Deadline" 
-                                    name="registrationDeadline" 
-                                    type="datetime-local" 
-                                    value={formData.registrationDeadline} 
-                                    onChange={handleChange} 
+                                <Input
+                                    label="Registration Deadline"
+                                    name="registrationDeadline"
+                                    type="datetime-local"
+                                    value={formData.registrationDeadline}
+                                    onChange={handleChange}
                                     error={errors.registrationDeadline}
                                     helperText="Note: When new registrations will be blocked."
                                 />
@@ -342,7 +471,7 @@ const CreateEvent: React.FC = () => {
                         <div className="p-6 bg-white rounded-lg border shadow-sm">
                             <h2 className="text-lg font-semibold text-gray-800 mb-4">Certificate Template (Optional)</h2>
                             <p className="text-sm text-gray-500 mb-2">
-                              Note: Recommended dimensions are 2048x1583px.
+                                Note: Recommended dimensions are 2048x1583px.
                             </p>
                             <label htmlFor="certificate-upload" className="relative cursor-pointer bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg p-6 flex flex-col items-center justify-center text-center hover:border-indigo-500 transition-colors">
                                 {(certificateFile || formData.certificateTemplateUrl) ? (
@@ -369,10 +498,10 @@ const CreateEvent: React.FC = () => {
                                 </Button>
                             )}
                         </div>
-                        
+
                         <div className="p-6 bg-white rounded-lg border shadow-sm">
                             <h2 className="text-lg font-semibold text-gray-800 mb-4">Payment Details</h2>
-                             <div className="space-y-4">
+                            <div className="space-y-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">Event Type</label>
                                     <select name="eventType" value={formData.eventType} onChange={handleChange} className="w-full p-2 border rounded-md shadow-sm border-gray-300">
@@ -388,7 +517,7 @@ const CreateEvent: React.FC = () => {
                                 )}
                             </div>
                         </div>
-                        
+
                         <div className="p-6 bg-white rounded-lg border shadow-sm">
                             <h2 className="text-lg font-semibold text-gray-800 mb-4">Optional Details</h2>
                             <div className="space-y-4">
@@ -404,11 +533,11 @@ const CreateEvent: React.FC = () => {
                     <Button type="button" variant="outline" onClick={() => navigate('/events')} disabled={isSubmitting}>
                         Cancel
                     </Button>
-                    <Button type="submit" isLoading={isSubmitting} leftIcon={<Save size={16}/>}>
+                    <Button type="submit" isLoading={isSubmitting} leftIcon={<Save size={16} />}>
                         {isEditMode ? 'Update Event' : 'Create Event'}
                     </Button>
                 </div>
-                
+
                 <CertificateLayoutEditorModal
                     isOpen={isLayoutModalOpen}
                     onClose={() => setIsLayoutModalOpen(false)}

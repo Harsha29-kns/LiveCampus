@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     Calendar, MapPin, Users, ArrowLeft, Edit, Trash2, CheckCircle, XCircle,
-    Share2, Info, AlertTriangle, PartyPopper, Ticket, Settings, ClipboardList, Star, Smartphone, Phone, Lock, Clock as ClockIcon
+    Share2, Info, AlertTriangle, PartyPopper, Ticket, Settings, ClipboardList, Star, Smartphone, Phone, Lock, Clock as ClockIcon, AlertCircle
 } from 'lucide-react';
 import { useEventStore } from '../stores/eventStore';
 import { useAuthStore } from '../stores/authStore';
@@ -33,7 +33,7 @@ const StarRating = ({ rating, setRating, disabled = false }: { rating: number, s
 const EventDetails: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const { getEventById, fetchEvents, approveEvent, rejectEvent, deleteEvent, registerForEvent, cancelRegistration, submitFeedback } = useEventStore();
+    const { getEventById, fetchEvents, approveEvent, rejectEvent, facultyApproveEvent, facultyRejectEvent, deleteEvent, registerForEvent, cancelRegistration, submitFeedback } = useEventStore();
     const { user } = useAuthStore();
     const [event, setEvent] = useState(getEventById(id || ''));
     const [isLoading, setIsLoading] = useState(true);
@@ -56,6 +56,7 @@ const EventDetails: React.FC = () => {
     const [transactionImage, setTransactionImage] = useState<File | null>(null);
     const [transactionId, setTransactionId] = useState('');
     const [paymentStatus, setPaymentStatus] = useState<'pending' | 'verified' | 'rejected' | null>(null);
+    const [note, setNote] = useState('');
 
     useEffect(() => {
         const loadEvent = async () => {
@@ -68,6 +69,19 @@ const EventDetails: React.FC = () => {
                 }
 
                 if (fetchedEvent) {
+                    const canView =
+                        fetchedEvent.status === 'approved' ||
+                        (user?.role === 'admin') ||
+                        (user?.role === 'club' && user.clubId === fetchedEvent.organizerId) ||
+                        (user?.role === 'faculty' && fetchedEvent.organizerType === 'club' && user.linkedClubIds?.includes(fetchedEvent.organizerId)) ||
+                        (user?.id === fetchedEvent.createdBy);
+
+                    if (!canView) {
+                        toast.error('You do not have permission to view this event.');
+                        navigate('/events');
+                        return;
+                    }
+
                     setEvent(fetchedEvent);
                     if (user && (fetchedEvent as any).feedback?.some((f: any) => f.userId === user.id)) {
                         setHasGivenFeedback(true);
@@ -135,13 +149,89 @@ const EventDetails: React.FC = () => {
 
     const handleReject = async () => {
         if (!id) return;
+        if (!note.trim()) {
+            toast.error("Please provide a rejection reason.");
+            return;
+        }
         setIsActionLoading(true);
-        const updatedEvent = await rejectEvent(id);
+        const updatedEvent = await rejectEvent(id, note);
         if (updatedEvent) {
             setEvent(updatedEvent);
         }
         setIsActionLoading(false);
     };
+
+    const handleFacultyApprove = async () => {
+        if (!id || !user?.id) return;
+        setIsActionLoading(true);
+        const success = await facultyApproveEvent(id, user.id, note);
+        if (success) {
+            // Notification Logic
+            if (event?.organizerType === 'club' && event.organizerId) {
+                try {
+                    const clubSnap = await getDoc(doc(db, 'clubs', event.organizerId));
+                    if (clubSnap.exists() && clubSnap.data().presidentId) {
+                        const userSnap = await getDoc(doc(db, 'users', clubSnap.data().presidentId));
+                        if (userSnap.exists()) {
+                            const userData = userSnap.data();
+                            await fetch('https://live-campus.vercel.app/api/send-workflow-notification', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    type: 'event_approved',
+                                    recipient: { name: userData.name, email: userData.email },
+                                    event: { ...event, id: id }
+                                })
+                            });
+                        }
+                    }
+                } catch (e) { console.error("Notification failed", e); }
+            }
+
+            const updated = getEventById(id);
+            if (updated) setEvent(updated);
+        }
+        setIsActionLoading(false);
+    };
+
+    const handleFacultyReject = async () => {
+        if (!id || !user?.id) return;
+        if (!note) {
+            toast.error("Please provide a reason for rejection.");
+            return;
+        }
+        setIsActionLoading(true);
+        const success = await facultyRejectEvent(id, user.id, note);
+        if (success) {
+            // Notification Logic
+            if (event?.organizerType === 'club' && event.organizerId) {
+                try {
+                    const clubSnap = await getDoc(doc(db, 'clubs', event.organizerId));
+                    if (clubSnap.exists() && clubSnap.data().presidentId) {
+                        const userSnap = await getDoc(doc(db, 'users', clubSnap.data().presidentId));
+                        if (userSnap.exists()) {
+                            const userData = userSnap.data();
+                            await fetch('https://live-campus.vercel.app/api/send-workflow-notification', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    type: 'event_rejected',
+                                    recipient: { name: userData.name, email: userData.email },
+                                    event: { ...event, id: id },
+                                    notes: note
+                                })
+                            });
+                        }
+                    }
+                } catch (e) { console.error("Notification failed", e); }
+            }
+
+            const updated = getEventById(id);
+            if (updated) setEvent(updated);
+        }
+        setIsActionLoading(false);
+    };
+
 
     const handleDelete = async () => {
         if (!id) return;
@@ -173,11 +263,11 @@ const EventDetails: React.FC = () => {
             navigator.clipboard.writeText(window.location.href).then(() => toast.success('Link copied!'));
         }
     };
-    
+
     const handleRegChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setRegistrationData(prev => ({ ...prev, [e.target.name]: e.target.value }));
     };
-    
+
     const validateReg = () => { return true; };
 
     const handleStudentRegister = async (e: React.FormEvent) => {
@@ -237,7 +327,7 @@ const EventDetails: React.FC = () => {
             setIsActionLoading(false);
         }
     };
-    
+
     const handleTransactionImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             setTransactionImage(e.target.files[0]);
@@ -299,7 +389,10 @@ const EventDetails: React.FC = () => {
     const isRejected = event.status === 'rejected';
     const isCancelled = event.status === 'cancelled';
     const isCompleted = isPast(endDate);
-    
+
+    // Check if user is the faculty linked to this club
+    const isFacultyReviewer = user?.role === 'faculty' && event.organizerType === 'club' && user.linkedClubIds?.includes(event.organizerId) && event.facultyApprovalStatus === 'pending';
+
     const isRegistrationOpen = event.registrationStartDate ? isPast(parseISO(event.registrationStartDate)) : true;
     const isDeadlineExpired = event.registrationDeadline ? isPast(parseISO(event.registrationDeadline)) : false;
     const isCapacityFull = event.capacity ? event.registeredCount >= event.capacity : false;
@@ -326,15 +419,112 @@ const EventDetails: React.FC = () => {
             <div className="max-w-7xl mx-auto p-4 md:p-8">
                 <div className="lg:grid lg:grid-cols-3 lg:gap-8 items-start">
                     <main className="lg:col-span-2 space-y-8 mb-8 lg:mb-0">
-                        {isPending && <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 p-4 rounded-r-md flex items-center gap-3"><AlertTriangle/><div><p className="font-bold">Pending Approval</p><p>This event is awaiting administrator review.</p></div></div>}
-                        {isCancelled && <div className="bg-gray-100 border-l-4 border-gray-500 text-gray-800 p-4 rounded-r-md flex items-center gap-3"><Info/><div><p className="font-bold">Event Cancelled</p></div></div>}
-                        {isRejected && <div className="bg-red-100 border-l-4 border-red-500 text-red-800 p-4 rounded-r-md flex items-center gap-3"><XCircle/><div><p className="font-bold">Event Rejected</p></div></div>}
-                        {isCompleted && <div className="bg-blue-100 border-l-4 border-blue-500 text-blue-800 p-4 rounded-r-md flex items-center gap-3"><CheckCircle/><div><p className="font-bold">Event Completed</p></div></div>}
-                        
-                        {isAdmin && isPending && (<Card className="border-yellow-300 bg-yellow-50"><CardHeader><h3 className="text-lg font-bold text-yellow-900">Admin Approval Required</h3></CardHeader><CardBody className="flex items-center gap-4"><p className="text-sm text-yellow-800 flex-grow">Review the details and take action.</p><Button size="sm" leftIcon={<CheckCircle size={16}/>} onClick={handleApprove} isLoading={isActionLoading}>Approve</Button><Button size="sm" variant="danger" leftIcon={<XCircle size={16}/>} onClick={handleReject} isLoading={isActionLoading}>Reject</Button></CardBody></Card>)}
+                        {isPending && <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 p-4 rounded-r-md flex items-center gap-3"><AlertTriangle /><div><p className="font-bold">Pending Approval</p><p>This event is awaiting administrator review.</p></div></div>}
+                        {isCancelled && <div className="bg-gray-100 border-l-4 border-gray-500 text-gray-800 p-4 rounded-r-md flex items-center gap-3"><Info /><div><p className="font-bold">Event Cancelled</p></div></div>}
+                        {isRejected && (
+                            <div className="bg-red-100 border-l-4 border-red-500 text-red-800 p-4 rounded-r-md">
+                                <div className="flex items-center gap-3">
+                                    <XCircle />
+                                    <div>
+                                        <p className="font-bold">Event Rejected</p>
+                                        <p>This event was rejected.</p>
+                                    </div>
+                                </div>
+                                {event.rejectionReason && (
+                                    <div className="mt-2 pl-9">
+                                        <p className="font-semibold text-sm">Reason:</p>
+                                        <p className="text-sm bg-red-50 p-2 rounded mt-1 border border-red-200">
+                                            {event.rejectionReason}
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                        {isCompleted && <div className="bg-blue-100 border-l-4 border-blue-500 text-blue-800 p-4 rounded-r-md flex items-center gap-3"><CheckCircle /><div><p className="font-bold">Event Completed</p></div></div>}
 
-                        <Card><CardHeader><h2 className="text-2xl font-bold text-gray-900">About This Event</h2></CardHeader><CardBody><p className="text-gray-700 text-lg whitespace-pre-line leading-relaxed">{event.description}</p>{event.tags?.length > 0 && <div className="mt-6 flex flex-wrap gap-2">{event.tags.map(tag => <Badge key={tag} variant="neutral">{tag}</Badge>)}</div>}</CardBody></Card>
-                        
+                        {isFacultyReviewer && (
+                            <Card className="border-indigo-300 bg-indigo-50">
+                                <CardHeader><h3 className="text-lg font-bold text-indigo-900">Faculty Approval Required</h3></CardHeader>
+                                <CardBody className="space-y-3">
+                                    <p className="text-sm text-indigo-800">Review this event from your club.</p>
+                                    <textarea className="w-full p-2 border rounded" placeholder="Add notes (required for rejection)..." value={note} onChange={e => setNote(e.target.value)} />
+                                    <div className="flex gap-2">
+                                        <Button size="sm" leftIcon={<CheckCircle size={16} />} onClick={handleFacultyApprove} isLoading={isActionLoading}>Approve</Button>
+                                        <Button size="sm" variant="danger" leftIcon={<XCircle size={16} />} onClick={handleFacultyReject} isLoading={isActionLoading}>Reject</Button>
+                                    </div>
+                                </CardBody>
+                            </Card>
+                        )}
+
+                        {isAdmin && isPending && (
+                            event.organizerType === 'club' && event.facultyApprovalStatus === 'pending' ? (
+                                <Card className="border-orange-300 bg-orange-50">
+                                    <CardBody>
+                                        <div className="flex items-center gap-3">
+                                            <AlertCircle className="text-orange-600" />
+                                            <div>
+                                                <p className="font-bold text-orange-900">Waiting for Faculty Approval</p>
+                                                <p className="text-sm text-orange-800">This event must be approved by the faculty advisor before you can review it.</p>
+                                            </div>
+                                        </div>
+                                    </CardBody>
+                                </Card>
+                            ) : (
+                                <Card className="border-yellow-300 bg-yellow-50">
+                                    <CardHeader><h3 className="text-lg font-bold text-yellow-900">Admin Approval Required</h3></CardHeader>
+                                    <CardBody className="space-y-4">
+                                        <p className="text-sm text-yellow-800">Review the details and take action.</p>
+
+                                        <div>
+                                            <label className="text-xs font-semibold text-yellow-900 uppercase">Rejection Reason / Notes</label>
+                                            <textarea
+                                                className="w-full p-2 border border-yellow-300 rounded bg-white text-sm"
+                                                placeholder="Required if rejecting..."
+                                                rows={2}
+                                                value={note}
+                                                onChange={e => setNote(e.target.value)}
+                                            />
+                                        </div>
+
+                                        <div className="flex gap-2">
+                                            <Button size="sm" leftIcon={<CheckCircle size={16} />} onClick={handleApprove} isLoading={isActionLoading}>Approve</Button>
+                                            <Button size="sm" variant="danger" leftIcon={<XCircle size={16} />} onClick={handleReject} isLoading={isActionLoading}>Reject</Button>
+                                        </div>
+                                    </CardBody>
+                                </Card>
+                            )
+                        )}
+
+                        <Card>
+                            <CardHeader><h2 className="text-2xl font-bold text-gray-900">About This Event</h2></CardHeader>
+                            <CardBody>
+                                <div className="mb-4 flex flex-wrap gap-4">
+                                    {event.category && (
+                                        <div className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-sm font-semibold border border-indigo-100">
+                                            Category: {event.category === 'other' ? (event.customCategory || 'Other') : (event.category.charAt(0).toUpperCase() + event.category.slice(1))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <p className="text-gray-700 text-lg whitespace-pre-line leading-relaxed">{event.description}</p>
+
+                                {event.category === 'hackathon' && event.resources && event.resources.length > 0 && (
+                                    <div className="mt-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                                        <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                                            <ClipboardList size={18} /> Required Resources
+                                        </h3>
+                                        <div className="flex flex-wrap gap-2">
+                                            {event.resources.map(res => (
+                                                <Badge key={res} variant="neutral" className="bg-white">{res}</Badge>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {event.tags?.length > 0 && <div className="mt-6 flex flex-wrap gap-2">{event.tags.map(tag => <Badge key={tag} variant="neutral">{tag}</Badge>)}</div>}
+                            </CardBody>
+                        </Card>
+
                         {club && (
                             <Card>
                                 <CardHeader><h2 className="text-2xl font-bold text-gray-900">Organizer Information</h2></CardHeader>
@@ -349,7 +539,45 @@ const EventDetails: React.FC = () => {
 
                         {isCompleted && attended && (
                             <Card>
-                                {/* Feedback Section */}
+                                <CardHeader><h2 className="text-2xl font-bold text-gray-900">Event Feedback</h2></CardHeader>
+                                <CardBody>
+                                    {hasGivenFeedback ? (
+                                        <div className="bg-green-50 text-green-800 p-4 rounded-lg flex items-center gap-3">
+                                            <CheckCircle />
+                                            <div>
+                                                <p className="font-bold">Thank you!</p>
+                                                <p>Your feedback has been submitted.</p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <form onSubmit={handleFeedbackSubmit} className="space-y-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Overall Experience</label>
+                                                <StarRating rating={feedback.overallExperience} setRating={(r) => setFeedback({ ...feedback, overallExperience: r })} />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Event Organization</label>
+                                                <StarRating rating={feedback.eventOrganization} setRating={(r) => setFeedback({ ...feedback, eventOrganization: r })} />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Activities Enjoyment</label>
+                                                <StarRating rating={feedback.activitiesEnjoyment} setRating={(r) => setFeedback({ ...feedback, activitiesEnjoyment: r })} />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Likelihood to Recommend</label>
+                                                <StarRating rating={feedback.recommendationLikelihood} setRating={(r) => setFeedback({ ...feedback, recommendationLikelihood: r })} />
+                                            </div>
+                                            <Input
+                                                label="Comments (Optional)"
+                                                value={feedback.comment}
+                                                onChange={(e) => setFeedback({ ...feedback, comment: e.target.value })}
+                                                placeholder="Tell us what you thought..."
+                                                fullWidth
+                                            />
+                                            <Button type="submit" isLoading={isActionLoading}>Submit Feedback</Button>
+                                        </form>
+                                    )}
+                                </CardBody>
                             </Card>
                         )}
                     </main>
@@ -358,28 +586,28 @@ const EventDetails: React.FC = () => {
                         <Card className="shadow-lg">
                             <CardBody className="space-y-4">
                                 <div className="flex items-start gap-4">
-                                    <Calendar className="w-5 h-5 text-indigo-600 mt-1 flex-shrink-0"/>
-                                    <p className="text-gray-700"><strong className="block text-gray-900">Event Date & Time</strong>{formattedDate}<br/>{formattedTime}</p>
+                                    <Calendar className="w-5 h-5 text-indigo-600 mt-1 flex-shrink-0" />
+                                    <p className="text-gray-700"><strong className="block text-gray-900">Event Date & Time</strong>{formattedDate}<br />{formattedTime}</p>
                                 </div>
-                                <div className="flex items-start gap-4"><MapPin className="w-5 h-5 text-indigo-600 mt-1 flex-shrink-0"/><p className="text-gray-700"><strong className="block text-gray-900">Location</strong>{event.location}</p></div>
-                                <div className="flex items-start gap-4"><Users className="w-5 h-5 text-indigo-600 mt-1 flex-shrink-0"/><p className="text-gray-700"><strong className="block text-gray-900">Capacity</strong>{event.registeredCount} / {event.capacity || 'Unlimited'}</p></div>
-                                
+                                <div className="flex items-start gap-4"><MapPin className="w-5 h-5 text-indigo-600 mt-1 flex-shrink-0" /><p className="text-gray-700"><strong className="block text-gray-900">Location</strong>{event.location}</p></div>
+                                <div className="flex items-start gap-4"><Users className="w-5 h-5 text-indigo-600 mt-1 flex-shrink-0" /><p className="text-gray-700"><strong className="block text-gray-900">Capacity</strong>{event.registeredCount} / {event.capacity || 'Unlimited'}</p></div>
+
                                 {event.registrationStartDate && (
                                     <div className="flex items-start gap-4 pt-4 border-t">
-                                        <ClockIcon className="w-5 h-5 text-indigo-600 mt-1 flex-shrink-0"/>
+                                        <ClockIcon className="w-5 h-5 text-indigo-600 mt-1 flex-shrink-0" />
                                         <p className="text-gray-700"><strong className="block text-gray-900">Registration Window</strong>
-                                        {format(parseISO(event.registrationStartDate), 'MMM d, h:mm a')}
-                                        {event.registrationDeadline && ` - ${format(parseISO(event.registrationDeadline), 'MMM d, h:mm a')}`}
+                                            {format(parseISO(event.registrationStartDate), 'MMM d, h:mm a')}
+                                            {event.registrationDeadline && ` - ${format(parseISO(event.registrationDeadline), 'MMM d, h:mm a')}`}
                                         </p>
                                     </div>
                                 )}
-                                
+
                                 {canRegister && event.registrationDeadline && (
                                     <div className="text-center text-xs text-gray-500 pt-2">
                                         Note: Registration closes in {formatDistanceToNow(parseISO(event.registrationDeadline))}.
                                     </div>
                                 )}
-                                
+
                                 <hr className="my-2" />
 
                                 {isApproved && !isCompleted && !isCancelled ? (
@@ -410,7 +638,7 @@ const EventDetails: React.FC = () => {
                                                 </div>
                                             )}
                                             {paymentStatus !== 'rejected' && (
-                                                 <Button variant="outline" fullWidth onClick={handleCancelRegistration} isLoading={isActionLoading}>Cancel Registration</Button>
+                                                <Button variant="outline" fullWidth onClick={handleCancelRegistration} isLoading={isActionLoading}>Cancel Registration</Button>
                                             )}
                                         </>
                                     ) : !isRegistrationOpen && event.registrationStartDate ? (
@@ -476,7 +704,7 @@ const EventDetails: React.FC = () => {
                                                 </Button>
                                             </form>
                                         ) : (
-                                           <div className="bg-blue-50 text-blue-700 rounded-lg p-4 text-center">
+                                            <div className="bg-blue-50 text-blue-700 rounded-lg p-4 text-center">
                                                 <h3 className="font-bold mb-1">Registration is Open</h3>
                                                 <p className="text-sm">Log in as a student to register.</p>
                                             </div>
@@ -488,24 +716,24 @@ const EventDetails: React.FC = () => {
                                     <div className="pt-4 border-t">
                                         <h3 className="font-bold text-lg text-center mb-2">Event Dashboard</h3>
                                         <div className="space-y-2">
-                                            <Button fullWidth onClick={() => navigate(`/events/${event.id}/attendance`)} leftIcon={<Settings size={16}/>}>Manage Attendance</Button>
+                                            <Button fullWidth onClick={() => navigate(`/events/${event.id}/attendance`)} leftIcon={<Settings size={16} />}>Manage Attendance</Button>
                                             {event.eventType === 'paid' && (
-                                                <Button fullWidth variant="outline" onClick={() => navigate(`/events/${event.id}/verify-payments`)} leftIcon={<ClipboardList size={16}/>}>Verify Payments</Button>
+                                                <Button fullWidth variant="outline" onClick={() => navigate(`/events/${event.id}/verify-payments`)} leftIcon={<ClipboardList size={16} />}>Verify Payments</Button>
                                             )}
-                                            <Button fullWidth variant="outline" onClick={() => navigate(`/events/${event.id}/marks`)} leftIcon={<ClipboardList size={16}/>}>Enter Marks</Button>
+                                            <Button fullWidth variant="outline" onClick={() => navigate(`/events/${event.id}/marks`)} leftIcon={<ClipboardList size={16} />}>Enter Marks</Button>
                                         </div>
                                     </div>
                                 )}
 
                                 <div className="pt-4 border-t">
-                                    <Button fullWidth variant="ghost" onClick={handleShare} leftIcon={<Share2 size={16}/>}>Share this Event</Button>
+                                    <Button fullWidth variant="ghost" onClick={handleShare} leftIcon={<Share2 size={16} />}>Share this Event</Button>
                                 </div>
                             </CardBody>
                         </Card>
                     </aside>
-                </div>
-            </div>
-        </div>
+                </div >
+            </div >
+        </div >
     );
 };
 

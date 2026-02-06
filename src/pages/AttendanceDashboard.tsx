@@ -18,17 +18,17 @@ const AttendanceDashboard: React.FC = () => {
 
   useEffect(() => {
     if (user && events.length > 0) {
-        let filteredEvents: Event[] = [];
-        if (user.role === 'club' && user.clubId) {
-            filteredEvents = events.filter(event => event.clubId === user.clubId && event.status === 'approved');
-        } else if (user.role === 'faculty') {
-            // Assuming faculty can see all approved events to manage attendance
-            // This could be refined to only events they are associated with if such a link exists
-            filteredEvents = events.filter(event => event.status === 'approved');
-        }
-        
-        const sortedEvents = filteredEvents.sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
-        setMyEvents(sortedEvents);
+      let filteredEvents: Event[] = [];
+      if (user.role === 'club' && user.clubId) {
+        filteredEvents = events.filter(event => event.organizerId === user.clubId && (event.status === 'approved' || event.status === 'completed'));
+      } else if (user.role === 'faculty') {
+        // Assuming faculty can see all approved events to manage attendance
+        // This could be refined to only events they are associated with if such a link exists
+        filteredEvents = events.filter(event => event.status === 'approved' || event.status === 'completed');
+      }
+
+      const sortedEvents = filteredEvents.sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
+      setMyEvents(sortedEvents);
     }
   }, [events, user]);
 
@@ -43,13 +43,13 @@ const AttendanceDashboard: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto mt-8 p-4 bg-white rounded-lg shadow-md">
       <h2 className="text-3xl font-bold mb-6 text-gray-800">Attendance Dashboard</h2>
-      
+
       {myEvents.length === 0 ? (
         <div className="text-center py-10 px-6 bg-gray-50 rounded-lg">
-            <h3 className="text-lg font-medium text-gray-700">No Approved Events Found</h3>
-            <p className="mt-2 text-sm text-gray-500">
-                You have no upcoming or past approved events to manage attendance for.
-            </p>
+          <h3 className="text-lg font-medium text-gray-700">No Approved Events Found</h3>
+          <p className="mt-2 text-sm text-gray-500">
+            You have no upcoming or past approved events to manage attendance for.
+          </p>
         </div>
       ) : (
         <div className="overflow-x-auto">

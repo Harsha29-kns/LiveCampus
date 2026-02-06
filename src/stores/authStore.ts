@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import { collection, getDocs, addDoc, query, where, setDoc, doc, deleteDoc, updateDoc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, query, where, setDoc, doc, deleteDoc, updateDoc, getDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
-import { User, UserRole } from '../types';
+import { User, UserRole, ClubFacultyCSVRow } from '../types';
 import toast from 'react-hot-toast';
 import { getAuth, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import bcrypt from 'bcryptjs';
@@ -21,6 +21,10 @@ interface AuthState {
   addUser: (name: string, email: string, password: string, role: string) => Promise<void>;
   updatePassword: (userId: string, newPassword: string) => Promise<void>;
   setUser: (user: User | null) => void;
+  bulkCreateFacultyClubAccounts: (csvData: ClubFacultyCSVRow[]) => Promise<{ success: number; failed: number; errors: string[] }>;
+  linkFacultyToClub: (facultyId: string, clubId: string) => Promise<boolean>;
+  unlinkFacultyFromClub: (facultyId: string, clubId: string) => Promise<boolean>;
+  changePassword: (newPassword: string) => Promise<boolean>;
 }
 
 const getInitialState = () => {
@@ -52,28 +56,28 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const userDoc = snapshot.docs[0];
         const user = { id: userDoc.id, ...userDoc.data() } as User;
 
-        
+
         if (user.role !== 'admin' && user.status !== 'approved') {
           toast.error('Your account is pending approval by admin.');
           set({ isLoading: false });
           return false;
         }
 
-      
+
         const isMatch = await bcrypt.compare(password, user.password);
         if (isMatch) {
-          
+
           const userId = userDoc.id;
           const userDocData = await getDoc(doc(db, 'users', userId));
           const userData = userDocData.data();
-          let club = null;
+          let club: User['club'] = undefined;
           if (userData.clubId) {
             const clubDoc = await getDoc(doc(db, 'clubs', userData.clubId));
-            club = clubDoc.exists() ? clubDoc.data() : null;
+            club = clubDoc.exists() ? (clubDoc.data() as any) : undefined;
           }
           set({
             user: {
-              ...userData,
+              ...(userData as any),
               id: userId,
               clubId: userData.clubId || null,
               club,
@@ -110,7 +114,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   register: async (name, email, password, role) => {
     set({ isLoading: true });
     try {
-      
+      // Prevent faculty self-registration
+      if (role === 'club' || role === 'faculty') {
+        toast.error(`${role.charAt(0).toUpperCase() + role.slice(1)} accounts must be created by admin`);
+        set({ isLoading: false });
+        return false;
+      }
+
+
       const q = query(collection(db, 'users'), where('email', '==', email));
       const snapshot = await getDocs(q);
       if (!snapshot.empty) {
@@ -130,7 +141,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       };
       const docRef = await addDoc(collection(db, 'users'), newUser);
 
-      
+
       if (newUser.status === 'approved') {
         const userToStore = { id: docRef.id, ...newUser } as User;
         set({ user: userToStore, isAuthenticated: true, isLoading: false });
@@ -159,7 +170,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const userString = localStorage.getItem('user');
     if (userString) {
       let user = JSON.parse(userString);
-      
+
       if (user.role === 'club' && user.clubId && !user.club) {
         const clubDoc = await getDoc(doc(db, 'clubs', user.clubId));
         if (clubDoc.exists()) {
@@ -180,18 +191,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return false;
     }
     try {
-      
+
       const userRef = doc(db, 'users', user.id);
       await updateDoc(userRef, {
         ...userData,
         updatedAt: new Date().toISOString(),
       });
 
-      
+
       const updatedUser = { ...user, ...userData, updatedAt: new Date().toISOString() };
       set({ user: updatedUser, isLoading: false });
       localStorage.setItem('user', JSON.stringify(updatedUser));
-      
+
       toast.success('Profile updated!');
       return true;
     } catch (error) {
@@ -210,13 +221,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const result = await signInWithPopup(auth, provider);
       const gUser = result.user;
 
-      
+
       const q = query(collection(db, 'users'), where('email', '==', gUser.email));
       const snapshot = await getDocs(q);
 
       let userData;
       if (snapshot.empty) {
-        
+
         userData = {
           id: gUser.uid,
           name: gUser.displayName,
@@ -296,10 +307,214 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         password: hashedPassword,
         updatedAt: new Date().toISOString(),
       });
-    } catch(error) {
+    } catch (error) {
       console.error("Error updating password:", error);
     }
   },
 
   setUser: (user) => set({ user }),
+
+  bulkCreateFacultyClubAccounts: async (csvData: ClubFacultyCSVRow[]) => {
+    let success = 0;
+    let failed = 0;
+    const errors: string[] = [];
+
+    for (const row of csvData) {
+      try {
+        // Check if club exists, create if not
+        const clubQuery = query(collection(db, 'clubs'), where('name', '==', row.clubName));
+        const clubSnapshot = await getDocs(clubQuery);
+
+        let clubId: string;
+        if (clubSnapshot.empty) {
+          // Create new club
+          const newClub = {
+            name: row.clubName,
+            description: `${row.clubName} - Auto-created`,
+            president: row.facultyName,
+            presidentId: '',
+            facultyAdvisor: row.facultyName,
+            facultyAdvisorId: '',
+            facultyMembers: [],
+            memberCount: 0,
+            points: 0,
+            tags: [],
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          const clubDocRef = await addDoc(collection(db, 'clubs'), newClub);
+          clubId = clubDocRef.id;
+        } else {
+          clubId = clubSnapshot.docs[0].id;
+        }
+
+        // Create Club User Account (Login)
+        const clubEmail = row.clubEmail;
+        const clubUserQuery = query(collection(db, 'users'), where('email', '==', clubEmail));
+        const clubUserSnap = await getDocs(clubUserQuery);
+
+        if (clubUserSnap.empty) {
+          const clubHashedPassword = await bcrypt.hash('defaultpassword', 10);
+          const newClubUser = {
+            name: row.clubName,
+            email: clubEmail,
+            password: clubHashedPassword,
+            role: 'club' as UserRole,
+            clubId: clubId,
+            status: 'approved',
+            mustChangePassword: true, // Force password change on first login
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          await addDoc(collection(db, 'users'), newClubUser);
+        }
+
+        // Check if faculty user exists
+        const userQuery = query(collection(db, 'users'), where('email', '==', row.facultyEmail));
+        const userSnapshot = await getDocs(userQuery);
+
+        let facultyUserId: string;
+        if (userSnapshot.empty) {
+          // Create new faculty user
+          const hashedPassword = await bcrypt.hash('defaultpassword', 10);
+          const newFaculty = {
+            name: row.facultyName,
+            email: row.facultyEmail,
+            password: hashedPassword,
+            role: 'faculty' as UserRole,
+            status: 'approved',
+            linkedClubIds: [clubId],
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          const facultyDocRef = await addDoc(collection(db, 'users'), newFaculty);
+          facultyUserId = facultyDocRef.id;
+
+          // Send credentials email
+          try {
+            await fetch('https://live-campus.vercel.app/api/send-faculty-credentials', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                email: row.facultyEmail,
+                name: row.facultyName,
+                facultyId: row.facultyId,
+                password: 'defaultpassword'
+              }),
+            });
+          } catch (emailError) {
+            console.error('Failed to send credentials email:', emailError);
+          }
+        } else {
+          facultyUserId = userSnapshot.docs[0].id;
+          // Add club to existing faculty's linkedClubIds
+          await updateDoc(doc(db, 'users', facultyUserId), {
+            linkedClubIds: arrayUnion(clubId),
+            updatedAt: new Date().toISOString(),
+          });
+        }
+
+        // Add faculty to club's facultyMembers
+        await updateDoc(doc(db, 'clubs', clubId), {
+          facultyMembers: arrayUnion(facultyUserId),
+          facultyAdvisorId: facultyUserId,
+          updatedAt: new Date().toISOString(),
+        });
+
+        success++;
+      } catch (error) {
+        failed++;
+        errors.push(`${row.clubName} - ${row.facultyName}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    }
+
+    if (success > 0) {
+      toast.success(`Successfully created/linked ${success} faculty-club associations`);
+    }
+    if (failed > 0) {
+      toast.error(`Failed to create ${failed} associations`);
+    }
+
+    return { success, failed, errors };
+  },
+
+  linkFacultyToClub: async (facultyId: string, clubId: string) => {
+    try {
+      // Add club to faculty's linkedClubIds
+      await updateDoc(doc(db, 'users', facultyId), {
+        linkedClubIds: arrayUnion(clubId),
+        updatedAt: new Date().toISOString(),
+      });
+
+      // Add faculty to club's facultyMembers
+      await updateDoc(doc(db, 'clubs', clubId), {
+        facultyMembers: arrayUnion(facultyId),
+        updatedAt: new Date().toISOString(),
+      });
+
+      toast.success('Faculty linked to club successfully');
+      return true;
+    } catch (error) {
+      console.error('Error linking faculty to club:', error);
+      toast.error('Failed to link faculty to club');
+      return false;
+    }
+  },
+
+  unlinkFacultyFromClub: async (facultyId: string, clubId: string) => {
+    try {
+      // Remove club from faculty's linkedClubIds
+      await updateDoc(doc(db, 'users', facultyId), {
+        linkedClubIds: arrayRemove(clubId),
+        updatedAt: new Date().toISOString(),
+      });
+
+      // Remove faculty from club's facultyMembers
+      await updateDoc(doc(db, 'clubs', clubId), {
+        facultyMembers: arrayRemove(facultyId),
+        updatedAt: new Date().toISOString(),
+      });
+
+      toast.success('Faculty unlinked from club successfully');
+      return true;
+    } catch (error) {
+      console.error('Error unlinking faculty from club:', error);
+      toast.error('Failed to unlink faculty from club');
+      return false;
+    }
+  },
+
+  changePassword: async (newPassword: string) => {
+    set({ isLoading: true });
+    const { user } = get();
+    if (!user) {
+      toast.error('Not authenticated');
+      set({ isLoading: false });
+      return false;
+    }
+
+    try {
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      const userRef = doc(db, 'users', user.id);
+
+      await updateDoc(userRef, {
+        password: hashedPassword,
+        mustChangePassword: false, // Clear the flag
+        updatedAt: new Date().toISOString(),
+      });
+
+      // Update local state
+      const updatedUser = { ...user, mustChangePassword: false, updatedAt: new Date().toISOString() };
+      set({ user: updatedUser, isLoading: false });
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+
+      toast.success('Password changed successfully!');
+      return true;
+    } catch (error) {
+      console.error('Error changing password:', error);
+      toast.error('Failed to update password');
+      set({ isLoading: false });
+      return false;
+    }
+  },
 }));

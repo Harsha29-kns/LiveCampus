@@ -33,7 +33,10 @@ import EventAttendance from './pages/EventAttendance';
 import AttendanceDashboard from './pages/AttendanceDashboard';
 import Leaderboard from './pages/Leaderboard';
 import VerifyPayments from './pages/VerifyPayments';
-import VerifyCertificate from './pages/VerifyCertificate'; // Import the new component
+import VerifyCertificate from './pages/VerifyCertificate';
+import FacultyEventApproval from './pages/FacultyEventApproval';
+
+import PublicEvents from './pages/PublicEvents';
 
 // Guards
 import AuthGuard from './guards/AuthGuard';
@@ -55,15 +58,22 @@ function App() {
   useAutoLogout();
 
   useEffect(() => {
+    if (!isAuthenticated || !user) return;
+
+    // 1. Forced Password Change
+    if (user.mustChangePassword && location.pathname !== '/change-password') {
+      navigate('/change-password');
+      return;
+    }
+
+    // 2. Club Profile Completion
     if (
-      isAuthenticated &&
-      user?.role === 'club' &&
+      user.role === 'club' &&
       (
         !user.club ||
         !user.club.name ||
         !user.club.facultyAdvisor ||
-        !user.club.president ||
-        !user.club.vicePresident
+        !user.club.president
       ) &&
       location.pathname !== '/club-profile'
     ) {
@@ -100,13 +110,14 @@ function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/events" element={<Events />} />
           <Route path="/events/:id" element={<EventDetails />} />
-          <Route 
-            path="/events/create" 
+          <Route path="/public-events" element={<PublicEvents />} />
+          <Route
+            path="/events/create"
             element={
               <RoleGuard allowedRoles={['admin', 'club', 'faculty']}>
                 <CreateEvent />
               </RoleGuard>
-            } 
+            }
           />
           <Route
             path="/events/edit/:id"
@@ -140,14 +151,22 @@ function App() {
               </RoleGuard>
             }
           />
+          <Route
+            path="/faculty/approvals"
+            element={
+              <RoleGuard allowedRoles={['faculty']}>
+                <FacultyEventApproval />
+              </RoleGuard>
+            }
+          />
           <Route path="/clubs/:id/edit" element={<CreateClub />} />
           <Route path="/club-profile" element={<ClubProfile />} />
           <Route path="/events/:eventId/marks" element={<EventMarks />} />
           <Route path="/marks" element={<MarksDashboard />} />
           <Route path="/events/:eventId/attendance" element={<EventAttendance />} />
-          
+
           {/* --- NEW ROUTE FOR PAYMENT VERIFICATION --- */}
-          <Route 
+          <Route
             path="/events/:eventId/verify-payments"
             element={
               <RoleGuard allowedRoles={['admin', 'club', 'faculty']}>

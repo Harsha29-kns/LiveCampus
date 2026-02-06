@@ -1,6 +1,7 @@
+
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, Users, Clock, Bell, ChevronRight, PlusCircle, Star, UserCheck, BarChart2, Activity } from 'lucide-react';
+import { Calendar, Users, Clock, Bell, ChevronRight, PlusCircle, Star, UserCheck, BarChart2, Activity, AlertCircle } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useEventStore } from '../stores/eventStore';
 import { useClubStore } from '../stores/clubStore';
@@ -39,7 +40,7 @@ const Dashboard: React.FC = () => {
         );
         const registrationSnapshots = await getDocs(registrationsQuery);
         const eventIds = registrationSnapshots.docs.map(doc => doc.data().eventId);
-        
+
         if (eventIds.length > 0) {
           const userRegisteredEvents = events.filter(event => eventIds.includes(event.id));
           setRegisteredEvents(userRegisteredEvents);
@@ -64,8 +65,8 @@ const Dashboard: React.FC = () => {
   const eventsTodayCount = approvedEvents.filter(e => isToday(parseISO(e.startDate))).length;
 
   const StatCard = ({ title, value, icon, colorClass, onClick }: { title: string, value: string | number, icon: React.ReactNode, colorClass: string, onClick?: () => void }) => (
-    <Card className={`text-white shadow-lg hover:shadow-xl transition-shadow ${onClick ? 'cursor-pointer' : ''}`} onClick={onClick}>
-      <CardBody className={`flex items-center p-4 ${colorClass}`}>
+    <Card className={`text - white shadow - lg hover: shadow - xl transition - shadow ${onClick ? 'cursor-pointer' : ''} `} onClick={onClick}>
+      <CardBody className={`flex items - center p - 4 ${colorClass} `}>
         <div className="p-3 bg-white bg-opacity-20 rounded-lg mr-4">{icon}</div>
         <div>
           <div className="text-sm font-medium uppercase opacity-80">{title}</div>
@@ -86,7 +87,7 @@ const Dashboard: React.FC = () => {
     <div
       key={event.id}
       className="flex items-center p-3 rounded-lg hover:bg-neutral-50 cursor-pointer"
-      onClick={() => navigate(`/events/${event.id}`)}
+      onClick={() => navigate(`/ events / ${event.id} `)}
     >
       <div className="w-16 text-center mr-4">
         <div className="text-lg font-bold text-primary-600">{format(parseISO(event.startDate), 'd')}</div>
@@ -134,15 +135,25 @@ const Dashboard: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard title="Upcoming Events" value={upcomingEvents.length} icon={<Calendar size={24} />} colorClass="bg-gradient-to-br from-blue-500 to-blue-600" onClick={() => navigate('/events')} />
         <StatCard title="Active Clubs" value={clubs.length} icon={<Users size={24} />} colorClass="bg-gradient-to-br from-green-500 to-green-600" onClick={() => navigate('/clubs')} />
-        
+
         {user?.role === 'student' && <StatCard title="My Registrations" value={registeredEvents.length} icon={<UserCheck size={24} />} colorClass="bg-gradient-to-br from-purple-500 to-purple-600" onClick={() => navigate('/profile')} />}
-        
+
         {(user?.role === 'faculty' || user?.role === 'club') && <StatCard title="My Events" value={myOrganizedEvents.length} icon={<Activity size={24} />} colorClass="bg-gradient-to-br from-purple-500 to-purple-600" />}
-        
+
         {user?.role === 'admin' && <StatCard title="Events Today" value={eventsTodayCount} icon={<Clock size={24} />} colorClass="bg-gradient-to-br from-purple-500 to-purple-600" onClick={() => navigate('/events')} />}
 
-        {(user?.role === 'admin' || user?.role === 'faculty' || user?.role === 'club') && <StatCard title="Pending Events" value={pendingEventsCount} icon={<Bell size={24} />} colorClass="bg-gradient-to-br from-yellow-500 to-yellow-600" onClick={() => navigate('/events')} />}
-        
+        {user?.role === 'faculty' && (
+          <StatCard
+            title="Action Required"
+            value={events.filter(e => e.organizerType === 'club' && user.linkedClubIds?.includes(e.organizerId) && e.facultyApprovalStatus === 'pending').length}
+            icon={<AlertCircle size={24} />}
+            colorClass="bg-gradient-to-br from-red-500 to-red-600"
+            onClick={() => navigate('/faculty/approvals')}
+          />
+        )}
+
+        {(user?.role === 'admin' || user?.role === 'club') && <StatCard title="Pending Events" value={pendingEventsCount} icon={<Bell size={24} />} colorClass="bg-gradient-to-br from-yellow-500 to-yellow-600" onClick={() => navigate('/events')} />}
+
         {(user?.role === 'faculty' || user?.role === 'club') && <StatCard title="Total Registrations" value={totalRegistrations} icon={<BarChart2 size={24} />} colorClass="bg-gradient-to-br from-indigo-500 to-indigo-600" />}
       </div>
 
@@ -163,17 +174,17 @@ const Dashboard: React.FC = () => {
           )}
 
           {user?.role === 'club' && myClub && (
-             <Card>
+            <Card>
               <CardHeader>
                 <h2 className="text-xl font-bold text-neutral-800">My Club: {myClub.name}</h2>
               </CardHeader>
               <CardBody>
                 <div className="flex items-center">
-                    {myClub.logo ? <img src={myClub.logo} alt={myClub.name} className="w-16 h-16 rounded-full object-cover mr-4" /> : <div className="w-16 h-16 rounded-full bg-primary-100 flex items-center justify-center mr-4"><Users size={24} className="text-primary-600"/></div>}
-                    <div>
-                        <p className="text-neutral-600"><span className="font-semibold">Members:</span> {myClub.memberCount}</p>
-                        <p className="text-neutral-600"><span className="font-semibold">Faculty Advisor:</span> {myClub.facultyAdvisor}</p>
-                    </div>
+                  {myClub.logo ? <img src={myClub.logo} alt={myClub.name} className="w-16 h-16 rounded-full object-cover mr-4" /> : <div className="w-16 h-16 rounded-full bg-primary-100 flex items-center justify-center mr-4"><Users size={24} className="text-primary-600" /></div>}
+                  <div>
+                    <p className="text-neutral-600"><span className="font-semibold">Members:</span> {myClub.memberCount}</p>
+                    <p className="text-neutral-600"><span className="font-semibold">Faculty Advisor:</span> {myClub.facultyAdvisor}</p>
+                  </div>
                 </div>
               </CardBody>
             </Card>
@@ -218,12 +229,12 @@ const Dashboard: React.FC = () => {
             </CardHeader>
             <CardBody className="space-y-3">
               {clubs.sort((a, b) => b.memberCount - a.memberCount).slice(0, 4).map(club => (
-                <div key={club.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-neutral-50 cursor-pointer" onClick={() => navigate(`/clubs/${club.id}`)}>
-                   <div className="flex items-center">
-                    {club.logo ? <img src={club.logo} alt={club.name} className="w-8 h-8 rounded-full object-cover mr-3" /> : <div className="w-8 h-8 rounded-full bg-secondary-100 flex items-center justify-center mr-3"><Star size={14} className="text-secondary-600"/></div>}
+                <div key={club.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-neutral-50 cursor-pointer" onClick={() => navigate(`/ clubs / ${club.id} `)}>
+                  <div className="flex items-center">
+                    {club.logo ? <img src={club.logo} alt={club.name} className="w-8 h-8 rounded-full object-cover mr-3" /> : <div className="w-8 h-8 rounded-full bg-secondary-100 flex items-center justify-center mr-3"><Star size={14} className="text-secondary-600" /></div>}
                     <span className="font-medium text-neutral-700">{club.name}</span>
                   </div>
-                  
+
                 </div>
               ))}
             </CardBody>
@@ -242,7 +253,7 @@ const Dashboard: React.FC = () => {
                 <div key={event.id} className="py-3">
                   <div className="flex justify-between items-center">
                     <h3 className="font-semibold text-neutral-800">{event.title}</h3>
-                    <Button variant="outline" size="sm" onClick={() => navigate(`/events/${event.id}`)}>Manage/View Participants</Button>
+                    <Button variant="outline" size="sm" onClick={() => navigate(`/ events / ${event.id} `)}>Manage/View Participants</Button>
                   </div>
                 </div>
               ))
