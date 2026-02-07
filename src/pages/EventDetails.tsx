@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-    Calendar, MapPin, Users, ArrowLeft, Edit, Trash2, CheckCircle, XCircle,
+    Calendar, MapPin, Users, ArrowLeft, Edit, Trash2, CheckCircle, XCircle, Download,
     Share2, Info, AlertTriangle, PartyPopper, Ticket, Settings, ClipboardList, Star, Smartphone, Phone, Lock, Clock as ClockIcon, AlertCircle, Navigation
 } from 'lucide-react';
 import { useEventStore } from '../stores/eventStore';
@@ -42,6 +42,18 @@ const EventDetails: React.FC = () => {
     const [isActionLoading, setIsActionLoading] = useState(false);
     const [registrationData, setRegistrationData] = useState<any>({
         regNo: '', name: user?.name || '', branch: '', department: user?.department || '', phone: '',
+        // Team registration fields
+        teamSize: 1,
+        teamLead: {
+            name: user?.name || '',
+            regNo: '',
+            phone: '',
+            hostelName: '',
+            roomNo: '',
+            branch: '',
+            department: user?.department || ''
+        },
+        teamMembers: [] as any[]
     });
     const [club, setClub] = useState<any>(null);
     const qrRef = useRef<HTMLDivElement>(null);
@@ -266,8 +278,116 @@ const EventDetails: React.FC = () => {
         }
     };
 
+    const handleDownloadTeamList = async () => {
+        if (!id || !event) return;
+
+        try {
+            toast.loading('Generating team list...');
+            const q = query(collection(db, 'eventRegistrations'), where('eventId', '==', id));
+            const snapshot = await getDocs(q);
+
+            const registrations = snapshot.docs.map(doc => doc.data());
+
+            // Generate CSV content
+            let csvContent = '';
+
+            if (event.isTeamEvent) {
+                // Team event CSV with all team member columns
+                csvContent = 'Team Lead Name,Reg No,Phone,Hostel,Room,Branch,';
+
+                const maxMembers = event.maxTeamSize || 4;
+                for (let i = 2; i <= maxMembers; i++) {
+                    csvContent += `Member ${i} Name,Member ${i} Reg No,Member ${i} Phone,Member ${i} Hostel,Member ${i} Room,`;
+                }
+                csvContent += 'Team Size,Payment Status,Transaction ID\n';
+
+                registrations.forEach((reg: any) => {
+                    if (reg.teamLead) {
+                        // Team registration
+                        csvContent += `"${reg.teamLead.name || ''}","${reg.teamLead.regNo || ''}","${reg.teamLead.phone || ''}","${reg.teamLead.hostelName || ''}","${reg.teamLead.roomNo || ''}","${reg.teamLead.branch || ''}",`;
+
+                        for (let i = 0; i < (maxMembers - 1); i++) {
+                            const member = reg.teamMembers?.[i];
+                            if (member) {
+                                csvContent += `"${member.name || ''}","${member.regNo || ''}","${member.phone || ''}","${member.hostelName || ''}","${member.roomNo || ''}",`;
+                            } else {
+                                csvContent += ',,,,,';
+                            }
+                        }
+
+                        csvContent += `${reg.teamSize || 1},`;
+                    } else {
+                        // Legacy individual registration in a team event
+                        csvContent += `"${reg.name || ''}","${reg.regNo || ''}","${reg.phone || ''}","","","${reg.branch || ''}",`;
+                        for (let i = 0; i < (maxMembers - 1); i++) {
+                            csvContent += ',,,,,';
+                        }
+                        csvContent += '1,';
+                    }
+
+                    csvContent += `${reg.paymentVerified ? 'Verified' : (reg.transactionId ? 'Pending' : 'N/A')},"${reg.transactionId || ''}"\n`;
+                });
+            } else {
+                // Individual event CSV 
+                csvContent = 'Name,Reg No,Phone,Branch,Payment Status,Transaction ID\n';
+
+                registrations.forEach((reg: any) => {
+                    csvContent += `"${reg.name || ''}","${reg.regNo || ''}","${reg.phone || ''}","${reg.branch || ''}",`;
+                    csvContent += `${reg.paymentVerified ? 'Verified' : (reg.transactionId ? 'Pending' : 'N/A')},"${reg.transactionId || ''}"\n`;
+                });
+            }
+
+            // Download CSV
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            const filename = event.isTeamEvent
+                ? `${event.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}-teams-${new Date().toISOString().split('T')[0]}.csv`
+                : `${event.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}-registrations-${new Date().toISOString().split('T')[0]}.csv`;
+            link.download = filename;
+            link.click();
+            window.URL.revokeObjectURL(url);
+
+            toast.dismiss();
+            toast.success('Team list downloaded successfully!');
+        } catch (error) {
+            console.error('Download error:', error);
+            toast.dismiss();
+            toast.error('Failed to download team list');
+        }
+    };
+
     const handleRegChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setRegistrationData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+        setRegistrationData((prev: any) => ({ ...prev, [e.target.name]: e.target.value }));
+    };
+
+    // Team registration handlers
+    const handleTeamSizeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const newSize = parseInt(e.target.value);
+        setRegistrationData((prev: any) => {
+            const newMembers = Array.from({ length: newSize - 1 }, (_, i) =>
+                prev.teamMembers[i] || { name: '', regNo: '', phone: '', hostelName: '', roomNo: '' }
+            );
+            return { ...prev, teamSize: newSize, teamMembers: newMembers };
+        });
+    };
+
+    const handleTeamLeadChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        setRegistrationData((prev: any) => ({
+            ...prev,
+            teamLead: { ...prev.teamLead, [name]: value }
+        }));
+    };
+
+    const handleTeamMemberChange = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        setRegistrationData((prev: any) => {
+            const newMembers = [...prev.teamMembers];
+            newMembers[index] = { ...newMembers[index], [name]: value };
+            return { ...prev, teamMembers: newMembers };
+        });
     };
 
     const validateReg = () => { return true; };
@@ -301,10 +421,26 @@ const EventDetails: React.FC = () => {
             }
 
             const registrationPayload: any = {
-                ...registrationData,
                 userId: user.id,
                 eventId: id,
             };
+
+            // Add team registration data if it's a team event
+            if (event.isTeamEvent) {
+                registrationPayload.teamSize = registrationData.teamSize;
+                registrationPayload.teamLead = {
+                    ...registrationData.teamLead,
+                    department: user.department
+                };
+                registrationPayload.teamMembers = registrationData.teamMembers;
+            } else {
+                // Individual registration (legacy format)
+                registrationPayload.regNo = registrationData.regNo;
+                registrationPayload.name = registrationData.name || user.name;
+                registrationPayload.branch = registrationData.branch;
+                registrationPayload.department = user.department;
+                registrationPayload.phone = registrationData.phone;
+            }
 
             if (event.eventType === 'paid') {
                 registrationPayload.transactionId = transactionId;
@@ -412,7 +548,7 @@ const EventDetails: React.FC = () => {
                 <div className="absolute inset-0 flex flex-col justify-end text-white p-4 md:p-8">
                     <div className="max-w-7xl mx-auto w-full">
                         <div className="absolute top-4 left-4 md:top-6 md:left-6"><Button variant="ghost" size="sm" leftIcon={<ArrowLeft size={16} />} onClick={() => navigate('/events')}>Back to Events</Button></div>
-                        {isOrganizer && isApproved && !isCompleted && (<div className="absolute top-4 right-4 md:top-6 md:right-6 flex gap-2"><Button variant="ghost" size="sm" leftIcon={<Edit size={16} />} onClick={() => navigate(`/events/edit/${event.id}`)}>Edit</Button><Button variant="danger" size="sm" leftIcon={<Trash2 size={16} />} onClick={handleDelete} isLoading={isActionLoading}>Delete</Button></div>)}
+                        {isOrganizer && isApproved && !isCompleted && (<div className="absolute top-4 right-4 md:top-6 md:right-6 flex gap-2"><Button variant="ghost" size="sm" leftIcon={<Download size={16} />} onClick={handleDownloadTeamList}>Download List</Button><Button variant="ghost" size="sm" leftIcon={<Edit size={16} />} onClick={() => navigate(`/events/edit/${event.id}`)}>Edit</Button><Button variant="danger" size="sm" leftIcon={<Trash2 size={16} />} onClick={handleDelete} isLoading={isActionLoading}>Delete</Button></div>)}
                         <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight drop-shadow-lg">{event.title}</h1>
                         <p className="mt-2 text-lg md:text-xl text-gray-200 drop-shadow-md">Organized by {event.organizerName}</p>
                     </div>
@@ -708,13 +844,18 @@ const EventDetails: React.FC = () => {
                                             <form onSubmit={handleStudentRegister} className="space-y-4">
                                                 <h3 className="text-xl font-bold text-gray-800 text-center">Register Now</h3>
                                                 {event.eventType === 'paid' && (
-                                                    // ==========================================================
-                                                    // START OF MODIFIED CODE BLOCK
-                                                    // ==========================================================
                                                     <div className="p-4 bg-indigo-50 rounded-lg text-center">
-                                                        <h4 className="font-bold text-indigo-800">Payment Required: ₹{event.eventFee}</h4>
+                                                        <h4 className="font-bold text-indigo-800">
+                                                            {event.isTeamEvent && registrationData.teamSize > 1
+                                                                ? `Payment Required: ${registrationData.teamSize} members × ₹${event.eventFee} = ₹${parseInt(event.eventFee || '0') * registrationData.teamSize}`
+                                                                : `Payment Required: ₹${event.eventFee}`
+                                                            }
+                                                        </h4>
                                                         <div className="mt-2 bg-white p-2 inline-block rounded-lg border">
-                                                            <QRCode value={upiIntentLink} size={160} />
+                                                            <QRCode value={event.isTeamEvent && registrationData.teamSize > 1
+                                                                ? `upi://pay?pa=${event.upiId}&pn=EventPayment&am=${parseInt(event.eventFee || '0') * registrationData.teamSize}&cu=INR`
+                                                                : upiIntentLink}
+                                                                size={160} />
                                                         </div>
                                                         <p className="font-semibold text-gray-800 mt-2">{event.upiId}</p>
                                                         <p className="text-xs text-gray-500 mt-3">
@@ -722,14 +863,132 @@ const EventDetails: React.FC = () => {
                                                             After paying, upload the screenshot and enter the Transaction ID below.
                                                         </p>
                                                     </div>
-                                                    // ==========================================================
-                                                    // END OF MODIFIED CODE BLOCK
-                                                    // ==========================================================
                                                 )}
-                                                <Input label="Reg. No" name="regNo" value={registrationData.regNo} onChange={handleRegChange} required />
-                                                <Input label="Name" name="name" value={registrationData.name} onChange={handleRegChange} required />
-                                                <Input label="Branch" name="branch" value={registrationData.branch} onChange={handleRegChange} required />
-                                                <Input label="Phone" name="phone" value={registrationData.phone} onChange={handleRegChange} required />
+
+                                                {/* Team-based registration for hackathons */}
+                                                {event.isTeamEvent ? (
+                                                    <>
+                                                        {/* Team Size Selector */}
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                                Team Size
+                                                            </label>
+                                                            <select
+                                                                value={registrationData.teamSize}
+                                                                onChange={handleTeamSizeChange}
+                                                                className="w-full p-2 border rounded-md shadow-sm border-gray-300 focus:ring-primary-500 focus:border-primary-500"
+                                                                required
+                                                            >
+                                                                {Array.from({ length: (event.maxTeamSize || 4) }, (_, i) => i + 1).map(size => (
+                                                                    <option key={size} value={size}>
+                                                                        {size} {size === 1 ? 'Member' : 'Members'}
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+
+                                                        {/* Team Lead Information */}
+                                                        <div className="border-2 border-primary-200 rounded-lg p-4 bg-primary-50">
+                                                            <h4 className="font-bold text-gray-800 mb-3">Team Lead Information</h4>
+                                                            <div className="space-y-3">
+                                                                <Input
+                                                                    label="Name"
+                                                                    name="name"
+                                                                    value={registrationData.teamLead.name}
+                                                                    onChange={handleTeamLeadChange}
+                                                                    required
+                                                                />
+                                                                <Input
+                                                                    label="Registration Number"
+                                                                    name="regNo"
+                                                                    value={registrationData.teamLead.regNo}
+                                                                    onChange={handleTeamLeadChange}
+                                                                    required
+                                                                />
+                                                                <Input
+                                                                    label="Phone Number"
+                                                                    name="phone"
+                                                                    value={registrationData.teamLead.phone}
+                                                                    onChange={handleTeamLeadChange}
+                                                                    required
+                                                                />
+                                                                <Input
+                                                                    label="Branch"
+                                                                    name="branch"
+                                                                    value={registrationData.teamLead.branch}
+                                                                    onChange={handleTeamLeadChange}
+                                                                    required
+                                                                />
+                                                                <Input
+                                                                    label="Hostel Name"
+                                                                    name="hostelName"
+                                                                    value={registrationData.teamLead.hostelName}
+                                                                    onChange={handleTeamLeadChange}
+                                                                    required
+                                                                />
+                                                                <Input
+                                                                    label="Room Number"
+                                                                    name="roomNo"
+                                                                    value={registrationData.teamLead.roomNo}
+                                                                    onChange={handleTeamLeadChange}
+                                                                    required
+                                                                />
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Team Members */}
+                                                        {registrationData.teamSize > 1 && registrationData.teamMembers.map((member: any, index: number) => (
+                                                            <div key={index} className="border-2 border-gray-200 rounded-lg p-4 bg-gray-50">
+                                                                <h4 className="font-bold text-gray-800 mb-3">Member {index + 2} Information</h4>
+                                                                <div className="space-y-3">
+                                                                    <Input
+                                                                        label="Name"
+                                                                        name="name"
+                                                                        value={member.name}
+                                                                        onChange={(e) => handleTeamMemberChange(index, e)}
+                                                                        required
+                                                                    />
+                                                                    <Input
+                                                                        label="Registration Number"
+                                                                        name="regNo"
+                                                                        value={member.regNo}
+                                                                        onChange={(e) => handleTeamMemberChange(index, e)}
+                                                                        required
+                                                                    />
+                                                                    <Input
+                                                                        label="Phone Number"
+                                                                        name="phone"
+                                                                        value={member.phone}
+                                                                        onChange={(e) => handleTeamMemberChange(index, e)}
+                                                                        required
+                                                                    />
+                                                                    <Input
+                                                                        label="Hostel Name"
+                                                                        name="hostelName"
+                                                                        value={member.hostelName}
+                                                                        onChange={(e) => handleTeamMemberChange(index, e)}
+                                                                        required
+                                                                    />
+                                                                    <Input
+                                                                        label="Room Number"
+                                                                        name="roomNo"
+                                                                        value={member.roomNo}
+                                                                        onChange={(e) => handleTeamMemberChange(index, e)}
+                                                                        required
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        {/* Individual registration (existing form) */}
+                                                        <Input label="Reg. No" name="regNo" value={registrationData.regNo} onChange={handleRegChange} required />
+                                                        <Input label="Name" name="name" value={registrationData.name} onChange={handleRegChange} required />
+                                                        <Input label="Branch" name="branch" value={registrationData.branch} onChange={handleRegChange} required />
+                                                        <Input label="Phone" name="phone" value={registrationData.phone} onChange={handleRegChange} required />
+                                                    </>
+                                                )}
                                                 {event.eventType === 'paid' && (
                                                     <>
                                                         <Input label="UPI Transaction ID" name="transactionId" value={transactionId} onChange={(e) => setTransactionId(e.target.value)} required />

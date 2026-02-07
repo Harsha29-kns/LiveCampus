@@ -83,6 +83,10 @@ export interface Event {
   rejectionReason?: string;
   rejectedBy?: string; // User ID who rejected
   venueLocation?: VenueLocation; // Venue navigation data
+  // Team registration fields for hackathon events
+  isTeamEvent?: boolean; // Flag to indicate if this is a team-based event
+  minTeamSize?: number; // Minimum team size (e.g., 1)
+  maxTeamSize?: number; // Maximum team size (e.g., 4 or 5)
 }
 
 export interface Club {
@@ -104,6 +108,17 @@ export interface Club {
   createdAt: string;
   updatedAt: string;
 }
+// Team member information (includes all fields for each member)
+export interface TeamMemberInfo {
+  name: string;
+  regNo: string;
+  phone: string;
+  hostelName: string;
+  roomNo: string;
+  branch?: string;
+  department?: string;
+}
+
 export interface EventRegistration {
   id: string;
   eventId: string;
@@ -114,6 +129,16 @@ export interface EventRegistration {
   transactionId?: string;
   transactionImage?: string;
   paymentVerified?: boolean;
+  // Team registration fields
+  teamSize?: number; // Actual number of team members
+  teamLead?: TeamMemberInfo; // Team lead is the first member (also the userId)
+  teamMembers?: TeamMemberInfo[]; // Additional team members (2nd to Nth)
+  // Legacy individual registration fields (for backward compatibility)
+  name?: string;
+  regNo?: string;
+  branch?: string;
+  department?: string;
+  phone?: string;
 }
 
 export interface Notification {

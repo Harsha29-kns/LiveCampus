@@ -49,6 +49,9 @@ const CreateEvent: React.FC = () => {
         category: 'other' as 'hackathon' | 'gateexam' | 'sports' | 'algorithms' | 'other',
         customCategory: '',
         resources: [] as string[],
+        isTeamEvent: false,
+        minTeamSize: 1,
+        maxTeamSize: 4,
     });
     const [imageFile, setImageFile] = React.useState<File | null>(null);
     const [certificateFile, setCertificateFile] = React.useState<File | null>(null);
@@ -91,6 +94,9 @@ const CreateEvent: React.FC = () => {
                         category: event.category || 'other',
                         customCategory: event.customCategory || '',
                         resources: event.resources || [],
+                        isTeamEvent: event.isTeamEvent || false,
+                        minTeamSize: event.minTeamSize || 1,
+                        maxTeamSize: event.maxTeamSize || 4,
                     });
                     setVenueLocation(event.venueLocation || null);
                 } else {
@@ -262,6 +268,10 @@ const CreateEvent: React.FC = () => {
                 customCategory: formData.category === 'other' ? formData.customCategory : undefined,
                 resources: formData.category === 'hackathon' ? formData.resources : undefined,
                 venueLocation: venueLocation || undefined,
+                // Team configuration for hackathon events
+                isTeamEvent: formData.category === 'hackathon' && formData.isTeamEvent ? formData.isTeamEvent : undefined,
+                minTeamSize: formData.category === 'hackathon' && formData.isTeamEvent ? formData.minTeamSize : undefined,
+                maxTeamSize: formData.category === 'hackathon' && formData.isTeamEvent ? formData.maxTeamSize : undefined,
             };
 
             if (isEditMode && id) {
@@ -401,6 +411,58 @@ const CreateEvent: React.FC = () => {
                                                     <span className="text-sm text-gray-700">{res}</span>
                                                 </label>
                                             ))}
+                                        </div>
+
+                                        {/* Team Configuration */}
+                                        <div className="mt-4 pt-4 border-t border-gray-200">
+                                            <label className="block text-sm font-medium text-gray-700 mb-3">Registration Type</label>
+                                            <div className="space-y-2">
+                                                <label className="flex items-center space-x-2 cursor-pointer p-2 hover:bg-gray-100 rounded">
+                                                    <input
+                                                        type="radio"
+                                                        name="teamConfig"
+                                                        checked={!formData.isTeamEvent}
+                                                        onChange={() => setFormData(prev => ({
+                                                            ...prev,
+                                                            isTeamEvent: false,
+                                                            minTeamSize: 1,
+                                                            maxTeamSize: 1,
+                                                        }))}
+                                                        className="text-primary-600 focus:ring-primary-500"
+                                                    />
+                                                    <span className="text-sm text-gray-700 font-medium">Individual Registration</span>
+                                                </label>
+                                                <label className="flex items-center space-x-2 cursor-pointer p-2 hover:bg-gray-100 rounded">
+                                                    <input
+                                                        type="radio"
+                                                        name="teamConfig"
+                                                        checked={formData.isTeamEvent && formData.maxTeamSize === 4}
+                                                        onChange={() => setFormData(prev => ({
+                                                            ...prev,
+                                                            isTeamEvent: true,
+                                                            minTeamSize: 1,
+                                                            maxTeamSize: 4
+                                                        }))}
+                                                        className="text-primary-600 focus:ring-primary-500"
+                                                    />
+                                                    <span className="text-sm text-gray-700 font-medium">Teams of 1-4 Members</span>
+                                                </label>
+                                                <label className="flex items-center space-x-2 cursor-pointer p-2 hover:bg-gray-100 rounded">
+                                                    <input
+                                                        type="radio"
+                                                        name="teamConfig"
+                                                        checked={formData.isTeamEvent && formData.maxTeamSize === 5}
+                                                        onChange={() => setFormData(prev => ({
+                                                            ...prev,
+                                                            isTeamEvent: true,
+                                                            minTeamSize: 1,
+                                                            maxTeamSize: 5
+                                                        }))}
+                                                        className="text-primary-600 focus:ring-primary-500"
+                                                    />
+                                                    <span className="text-sm text-gray-700 font-medium">Teams of 1-5 Members</span>
+                                                </label>
+                                            </div>
                                         </div>
                                     </div>
                                 )}
