@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, MapPin, Users, ImageUp, Tag, Calendar, Clock, Save, DollarSign, Phone, Award, Settings, Info } from 'lucide-react';
+import { ArrowLeft, MapPin, Users, ImageUp, Tag, Calendar, Clock, Save, DollarSign, Phone, Award, Settings, Info, Navigation } from 'lucide-react';
 import { useEventStore } from '../stores/eventStore';
 import { useAuthStore } from '../stores/authStore';
 import { useClubStore } from '../stores/clubStore';
@@ -8,11 +8,12 @@ import { db } from '../firebaseConfig';
 import { doc, getDoc } from 'firebase/firestore';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
-import { Event, CertificateLayout } from '../types';
+import { Event, CertificateLayout, VenueLocation } from '../types';
 import toast from 'react-hot-toast';
 import { format, parseISO } from 'date-fns';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import CertificateLayoutEditorModal from '../components/ui/CertificateLayoutEditor';
+import VenueMapSelector from '../components/ui/VenueMapSelector';
 
 const CreateEvent: React.FC = () => {
     const { id } = useParams<{ id?: string }>();
@@ -53,6 +54,8 @@ const CreateEvent: React.FC = () => {
     const [certificateFile, setCertificateFile] = React.useState<File | null>(null);
     const [errors, setErrors] = React.useState<Record<string, string>>({});
     const [isLayoutModalOpen, setIsLayoutModalOpen] = React.useState(false);
+    const [isVenueModalOpen, setIsVenueModalOpen] = React.useState(false);
+    const [venueLocation, setVenueLocation] = React.useState<VenueLocation | null>(null);
 
     React.useEffect(() => {
         const loadEventData = async () => {
@@ -89,6 +92,7 @@ const CreateEvent: React.FC = () => {
                         customCategory: event.customCategory || '',
                         resources: event.resources || [],
                     });
+                    setVenueLocation(event.venueLocation || null);
                 } else {
                     toast.error("Event not found for editing.");
                     navigate('/events');
@@ -257,6 +261,7 @@ const CreateEvent: React.FC = () => {
                 category: formData.category,
                 customCategory: formData.category === 'other' ? formData.customCategory : undefined,
                 resources: formData.category === 'hackathon' ? formData.resources : undefined,
+                venueLocation: venueLocation || undefined,
             };
 
             if (isEditMode && id) {
@@ -405,6 +410,52 @@ const CreateEvent: React.FC = () => {
                                     {errors.description && <p className="mt-1 text-sm text-red-500">{errors.description}</p>}
                                 </div>
                                 <Input label="Location" name="location" leftIcon={<MapPin size={16} />} placeholder="e.g., College Auditorium" value={formData.location} onChange={handleChange} error={errors.location} required />
+
+                                {/* Venue Navigation Selector */}
+                                <div className="mt-4 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div>
+                                            <h4 className="font-semibold text-gray-900 flex items-center gap-2">
+                                                <Navigation size={18} className="text-indigo-600" />
+                                                Venue Navigation (Optional)
+                                            </h4>
+                                            <p className="text-xs text-gray-600 mt-1">
+                                                Add map-based navigation for students to find the venue
+                                            </p>
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant={venueLocation ? "outline" : "primary"}
+                                            onClick={() => setIsVenueModalOpen(true)}
+                                        >
+                                            {venueLocation ? 'Update Location' : 'Set on Map'}
+                                        </Button>
+                                    </div>
+
+                                    {venueLocation && (
+                                        <div className="mt-3 p-3 bg-white rounded border text-sm">
+                                            <div className="flex items-start justify-between">
+                                                <div className="flex-1">
+                                                    <p className="font-medium text-gray-900">{venueLocation.name}</p>
+                                                    {venueLocation.buildingName && (
+                                                        <p className="text-gray-600 text-xs mt-1">{venueLocation.buildingName}</p>
+                                                    )}
+                                                    <p className="text-gray-500 text-xs mt-1">
+                                                        {venueLocation.startingPoints.length} starting point{venueLocation.startingPoints.length !== 1 ? 's' : ''} configured
+                                                    </p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setVenueLocation(null)}
+                                                    className="text-red-600 hover:text-red-800 text-xs"
+                                                >
+                                                    Remove
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
                         <div className="p-6 bg-white rounded-lg border shadow-sm">
@@ -545,6 +596,18 @@ const CreateEvent: React.FC = () => {
                     initialLayout={formData.certificateLayout}
                     onSave={handleSaveLayout}
                 />
+
+                {/* Venue Map Selector Modal */}
+                {isVenueModalOpen && (
+                    <VenueMapSelector
+                        initialValue={venueLocation}
+                        onSave={(venue) => {
+                            setVenueLocation(venue);
+                            setIsVenueModalOpen(false);
+                        }}
+                        onClose={() => setIsVenueModalOpen(false)}
+                    />
+                )}
             </form>
         </div>
     );

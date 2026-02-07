@@ -7,6 +7,28 @@ export interface CertificateLayout {
   qrCode: { x: number; y: number; size: number };
 }
 
+// Venue Navigation Types
+export interface Coordinates {
+  latitude: number;
+  longitude: number;
+}
+
+export interface StartingPoint {
+  id: string;
+  name: string;
+  coordinates: Coordinates;
+}
+
+export interface VenueLocation {
+  coordinates: Coordinates;
+  name: string;
+  buildingName?: string;
+  floorNumber?: string;
+  roomNumber?: string;
+  instructions?: string;
+  startingPoints: StartingPoint[];
+}
+
 export interface User {
   id: string;
   name: string;
@@ -60,6 +82,7 @@ export interface Event {
   resources?: string[]; // e.g., 'mic', 'speaker', 'ac', 'powerbackup', 'water'
   rejectionReason?: string;
   rejectedBy?: string; // User ID who rejected
+  venueLocation?: VenueLocation; // Venue navigation data
 }
 
 export interface Club {

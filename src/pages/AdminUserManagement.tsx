@@ -430,12 +430,119 @@ const AdminUserManagement: React.FC = () => {
             <Card>
                 <CardBody>
                     <h2 className="font-semibold text-lg text-primary-700 mb-4">System Maintenance</h2>
-                    <div className="flex items-center justify-between bg-neutral-50 p-4 rounded-lg border">
-                        <div>
-                            <h3 className="font-bold text-neutral-800">Data Migration</h3>
-                            <p className="text-sm text-neutral-600">Update existing database records to support new faculty approval features.</p>
+
+                    <div className="space-y-4">
+                        {/* Data Migration */}
+                        <div className="flex items-center justify-between bg-neutral-50 p-4 rounded-lg border">
+                            <div>
+                                <h3 className="font-bold text-neutral-800">Data Migration</h3>
+                                <p className="text-sm text-neutral-600">Update existing database records to support new faculty approval features.</p>
+                            </div>
+                            <Button onClick={handleMigration} variant="secondary">Run Migration</Button>
                         </div>
-                        <Button onClick={handleMigration} variant="secondary">Run Migration</Button>
+
+                        {/* Database Reset - DANGER ZONE */}
+                        <div className="flex items-center justify-between bg-red-50 p-4 rounded-lg border-2 border-red-200">
+                            <div className="flex items-start gap-3">
+                                <div className="bg-red-100 p-2 rounded-full text-red-600">
+                                    <AlertTriangle size={24} />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-red-800 flex items-center gap-2">
+                                        Reset Database
+                                        <span className="text-xs bg-red-200 text-red-800 px-2 py-1 rounded">DANGER</span>
+                                    </h3>
+                                    <p className="text-sm text-red-700 mb-1">Delete all events and user accounts except admin accounts.</p>
+                                    <p className="text-xs text-red-600 font-semibold">⚠️ This action cannot be undone!</p>
+                                </div>
+                            </div>
+                            <Button
+                                onClick={async () => {
+                                    // First confirmation
+                                    const firstConfirm = window.confirm(
+                                        '⚠️ WARNING: This will DELETE ALL EVENTS and USER ACCOUNTS (except admin accounts)!\n\n' +
+                                        'Are you absolutely sure you want to continue?\n\n' +
+                                        'Click OK to proceed with the second confirmation.'
+                                    );
+
+                                    if (!firstConfirm) return;
+
+                                    // Second confirmation with typing requirement
+                                    const confirmText = prompt(
+                                        'Second Confirmation Required:\n\n' +
+                                        'Type "DELETE ALL DATA" (in CAPS) to confirm database reset.\n\n' +
+                                        'This will permanently delete:\n' +
+                                        '- All Events\n' +
+                                        '- All Student Accounts\n' +
+                                        '- All Club Accounts\n' +
+                                        '- All Faculty Accounts\n' +
+                                        '- All Clubs\n\n' +
+                                        'Admin accounts will be preserved.'
+                                    );
+
+                                    if (confirmText !== 'DELETE ALL DATA') {
+                                        toast.error('Reset cancelled - confirmation text did not match.');
+                                        return;
+                                    }
+
+                                    // Execute reset
+                                    setIsLoading(true);
+                                    try {
+                                        const { db } = await import('../firebaseConfig');
+                                        const { collection, getDocs, deleteDoc, doc } = await import('firebase/firestore');
+
+                                        let deletedEvents = 0;
+                                        let deletedUsers = 0;
+                                        let deletedClubs = 0;
+
+                                        // Delete all events
+                                        const eventsSnapshot = await getDocs(collection(db, 'events'));
+                                        for (const eventDoc of eventsSnapshot.docs) {
+                                            await deleteDoc(doc(db, 'events', eventDoc.id));
+                                            deletedEvents++;
+                                        }
+
+                                        // Delete all clubs
+                                        const clubsSnapshot = await getDocs(collection(db, 'clubs'));
+                                        for (const clubDoc of clubsSnapshot.docs) {
+                                            await deleteDoc(doc(db, 'clubs', clubDoc.id));
+                                            deletedClubs++;
+                                        }
+
+                                        // Delete all users EXCEPT admins
+                                        const usersSnapshot = await getDocs(collection(db, 'users'));
+                                        for (const userDoc of usersSnapshot.docs) {
+                                            const userData = userDoc.data();
+                                            if (userData.role !== 'admin') {
+                                                await deleteDoc(doc(db, 'users', userDoc.id));
+                                                deletedUsers++;
+                                            }
+                                        }
+
+                                        toast.success(
+                                            `Database Reset Complete!\n\n` +
+                                            `Deleted: ${deletedEvents} events, ${deletedUsers} users, ${deletedClubs} clubs.\n` +
+                                            `Admin accounts preserved.`
+                                        );
+
+                                        // Refresh data
+                                        await Promise.all([
+                                            fetchUsers().then(setUsers),
+                                            fetchClubs()
+                                        ]);
+                                    } catch (error) {
+                                        console.error('Reset failed:', error);
+                                        toast.error('Database reset failed. Check console for details.');
+                                    } finally {
+                                        setIsLoading(false);
+                                    }
+                                }}
+                                variant="danger"
+                                size="md"
+                            >
+                                Reset Database
+                            </Button>
+                        </div>
                     </div>
                 </CardBody>
             </Card>

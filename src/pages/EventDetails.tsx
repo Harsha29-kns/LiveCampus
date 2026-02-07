@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     Calendar, MapPin, Users, ArrowLeft, Edit, Trash2, CheckCircle, XCircle,
-    Share2, Info, AlertTriangle, PartyPopper, Ticket, Settings, ClipboardList, Star, Smartphone, Phone, Lock, Clock as ClockIcon, AlertCircle
+    Share2, Info, AlertTriangle, PartyPopper, Ticket, Settings, ClipboardList, Star, Smartphone, Phone, Lock, Clock as ClockIcon, AlertCircle, Navigation
 } from 'lucide-react';
 import { useEventStore } from '../stores/eventStore';
 import { useAuthStore } from '../stores/authStore';
@@ -17,6 +17,7 @@ import { db } from '../firebaseConfig';
 import QRCode from 'react-qr-code';
 import { toPng } from 'html-to-image';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
+import NavigationView from '../components/ui/NavigationView';
 
 const StarRating = ({ rating, setRating, disabled = false }: { rating: number, setRating: (rating: number) => void, disabled?: boolean }) => (
     <div className="flex space-x-1">
@@ -57,6 +58,7 @@ const EventDetails: React.FC = () => {
     const [transactionId, setTransactionId] = useState('');
     const [paymentStatus, setPaymentStatus] = useState<'pending' | 'verified' | 'rejected' | null>(null);
     const [note, setNote] = useState('');
+    const [isNavigating, setIsNavigating] = useState(false);
 
     useEffect(() => {
         const loadEvent = async () => {
@@ -521,6 +523,44 @@ const EventDetails: React.FC = () => {
                                     </div>
                                 )}
 
+                                {/* Venue Navigation Section */}
+                                {event.venueLocation && (
+                                    <div className="mt-6 bg-indigo-50 p-4 rounded-lg border border-indigo-200">
+                                        <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                            <MapPin size={18} className="text-indigo-600" />
+                                            Venue Information
+                                        </h3>
+                                        <div className="space-y-2 text-sm text-gray-700 mb-3">
+                                            <p><strong>{event.venueLocation.name}</strong></p>
+                                            {event.venueLocation.buildingName && (
+                                                <p className="text-gray-600">{event.venueLocation.buildingName}</p>
+                                            )}
+                                            {(event.venueLocation.floorNumber || event.venueLocation.roomNumber) && (
+                                                <p className="text-gray-600">
+                                                    {event.venueLocation.floorNumber}
+                                                    {event.venueLocation.floorNumber && event.venueLocation.roomNumber && ', '}
+                                                    {event.venueLocation.roomNumber}
+                                                </p>
+                                            )}
+                                            {event.venueLocation.instructions && (
+                                                <p className="mt-2 text-indigo-700 italic">
+                                                    <Info size={14} className="inline mr-1" />
+                                                    {event.venueLocation.instructions}
+                                                </p>
+                                            )}
+                                        </div>
+                                        <Button
+                                            size="sm"
+                                            variant="primary"
+                                            leftIcon={<Navigation size={16} />}
+                                            onClick={() => setIsNavigating(true)}
+                                            fullWidth
+                                        >
+                                            Navigate to Venue
+                                        </Button>
+                                    </div>
+                                )}
+
                                 {event.tags?.length > 0 && <div className="mt-6 flex flex-wrap gap-2">{event.tags.map(tag => <Badge key={tag} variant="neutral">{tag}</Badge>)}</div>}
                             </CardBody>
                         </Card>
@@ -730,9 +770,91 @@ const EventDetails: React.FC = () => {
                                 </div>
                             </CardBody>
                         </Card>
+
+                        {/* Navigation QR Code Card */}
+                        {event.venueLocation && (
+                            <Card>
+                                <CardHeader>
+                                    <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                                        <Navigation size={24} className="text-indigo-600" />
+                                        Navigate to Venue
+                                    </h2>
+                                </CardHeader>
+                                <CardBody className="text-center space-y-4">
+                                    <p className="text-sm text-gray-600">
+                                        Scan this QR code to open navigation directly
+                                    </p>
+
+                                    <div
+                                        ref={qrRef}
+                                        className="inline-block bg-white p-4 rounded-lg border-2 border-indigo-300"
+                                    >
+                                        <QRCode
+                                            value={`${window.location.origin}/events/${event.id}/navigate`}
+                                            size={200}
+                                            level="H"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Button
+                                            size="sm"
+                                            variant="primary"
+                                            fullWidth
+                                            leftIcon={<Navigation size={16} />}
+                                            onClick={() => setIsNavigating(true)}
+                                        >
+                                            Open Navigation
+                                        </Button>
+
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            fullWidth
+                                            leftIcon={<Share2 size={16} />}
+                                            onClick={async () => {
+                                                if (qrRef.current) {
+                                                    try {
+                                                        const dataUrl = await toPng(qrRef.current, {
+                                                            quality: 1,
+                                                            pixelRatio: 2,
+                                                        });
+                                                        const link = document.createElement('a');
+                                                        link.download = `${event.title}-navigation-qr.png`;
+                                                        link.href = dataUrl;
+                                                        link.click();
+                                                        toast.success('Navigation QR code downloaded!');
+                                                    } catch (err) {
+                                                        console.error('Failed to download QR code:', err);
+                                                        toast.error('Failed to download QR code');
+                                                    }
+                                                }
+                                            }}
+                                        >
+                                            Download QR Code
+                                        </Button>
+                                    </div>
+
+                                    <p className="text-xs text-gray-500">
+                                        Share this QR code on posters or flyers for easy navigation
+                                    </p>
+                                </CardBody>
+                            </Card>
+                        )}
                     </aside>
                 </div >
             </div >
+
+            {/* Navigation View Modal */}
+            {isNavigating && event.venueLocation && (
+                <NavigationView
+                    destination={event.venueLocation.coordinates}
+                    destinationName={event.venueLocation.name}
+                    startingPoints={event.venueLocation.startingPoints}
+                    instructions={event.venueLocation.instructions}
+                    onClose={() => setIsNavigating(false)}
+                />
+            )}
         </div >
     );
 };

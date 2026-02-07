@@ -35,6 +35,7 @@ import Leaderboard from './pages/Leaderboard';
 import VerifyPayments from './pages/VerifyPayments';
 import VerifyCertificate from './pages/VerifyCertificate';
 import FacultyEventApproval from './pages/FacultyEventApproval';
+import NavigationPage from './pages/NavigationPage';
 
 import PublicEvents from './pages/PublicEvents';
 
@@ -110,6 +111,7 @@ function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/events" element={<Events />} />
           <Route path="/events/:id" element={<EventDetails />} />
+          <Route path="/events/:id/navigate" element={<NavigationPage />} />
           <Route path="/public-events" element={<PublicEvents />} />
           <Route
             path="/events/create"
