@@ -18,7 +18,7 @@ const Profile: React.FC = () => {
   const { user, updateProfile, isLoading: isAuthLoading } = useAuthStore();
   const { events, fetchEvents } = useEventStore();
   const navigate = useNavigate();
-  
+
   const [isPageLoading, setIsPageLoading] = useState(true); // State for initial page load
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
@@ -31,27 +31,37 @@ const Profile: React.FC = () => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [registeredEvents, setRegisteredEvents] = useState<Event[]>([]);
   const [certificates, setCertificates] = useState<any[]>([]);
-  const [club, setClub] = useState(null);
+  const [club, setClub] = useState<any>(null);
   const [isClubEditing, setIsClubEditing] = useState(false);
-  const [clubEditData, setClubEditData] = useState<any>(club || {});
-  
+  const [clubEditData, setClubEditData] = useState<any>({});
+
   useEffect(() => {
     const loadProfileData = async () => {
       if (!user) {
         setIsPageLoading(false);
         return;
       }
-      
+
       setIsPageLoading(true);
       try {
-        // Fetch registered events
+        // Fetch events if not already loaded
+        let currentEvents = events;
         if (events.length === 0) {
           await fetchEvents();
+          // Note: We don't need to get events from store here as they'll be available on next render
         }
+
+        // Fetch registered events
         const registrationsQuery = query(collection(db, 'eventRegistrations'), where('userId', '==', user.id));
         const registrationSnapshots = await getDocs(registrationsQuery);
         const eventIds = registrationSnapshots.docs.map(doc => doc.data().eventId);
-        const userRegisteredEvents = events.filter(event => eventIds.includes(event.id));
+
+        // Use the events from the store (they'll be updated after fetchEvents)
+        if (currentEvents.length === 0) {
+          // Wait a bit for events to be populated
+          currentEvents = useEventStore.getState().events;
+        }
+        const userRegisteredEvents = currentEvents.filter(event => eventIds.includes(event.id));
         setRegisteredEvents(userRegisteredEvents);
 
         // Fetch certificates for the user
@@ -75,14 +85,14 @@ const Profile: React.FC = () => {
         setIsPageLoading(false);
       }
     };
-    
+
     loadProfileData();
-  }, [user, events, fetchEvents]);
+  }, [user]); // Only depend on user, not events or fetchEvents
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-    
+
     if (errors[name]) {
       setErrors(prev => {
         const newErrors = { ...prev };
@@ -91,37 +101,37 @@ const Profile: React.FC = () => {
       });
     }
   };
-  
+
   const handleClubChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setClubEditData({ ...clubEditData, [e.target.name]: e.target.value });
   };
-  
+
   const validate = () => {
     const newErrors: Record<string, string> = {};
-    
+
     if (!formData.name.trim()) {
       newErrors.name = 'Name is required';
     }
-    
+
     if (!formData.email.trim()) {
       newErrors.email = 'Email is required';
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
       newErrors.email = 'Email is invalid';
     }
-    
+
     if (formData.avatar && !isValidUrl(formData.avatar)) {
       newErrors.avatar = 'Please enter a valid URL';
     }
-    
+
     // @ts-ignore
     if (formData.year && (isNaN(Number(formData.year)) || Number(formData.year) <= 0)) {
       newErrors.year = 'Year must be a positive number';
     }
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
-  
+
   const isValidUrl = (url: string) => {
     try {
       new URL(url);
@@ -130,15 +140,15 @@ const Profile: React.FC = () => {
       return false;
     }
   };
-  
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validate()) {
       toast.error('Please fix the errors in the form');
       return;
     }
-    
+
     const profileData = {
       name: formData.name,
       avatar: formData.avatar || undefined,
@@ -146,14 +156,14 @@ const Profile: React.FC = () => {
       // @ts-ignore
       year: formData.year ? parseInt(formData.year) : undefined,
     };
-    
+
     const success = await updateProfile(profileData);
-    
+
     if (success) {
       setIsEditing(false);
     }
   };
-  
+
   const handleClubSave = async () => {
     if (!user?.clubId) return;
     await updateDoc(doc(db, 'clubs', user.clubId), {
@@ -164,7 +174,7 @@ const Profile: React.FC = () => {
     setIsClubEditing(false);
     toast.success('Club profile updated!');
   };
-  
+
   // This handles the case where the user object itself is not yet available from the auth store
   if (!user) {
     return (
@@ -176,19 +186,19 @@ const Profile: React.FC = () => {
 
   // This handles the loading of associated data like events and clubs after the user is available
   if (isPageLoading) {
-      return (
-          <div className="flex justify-center items-center h-64">
-              <LoadingSpinner size="lg" text="Loading Profile Data..." />
-          </div>
-      );
+    return (
+      <div className="flex justify-center items-center h-64">
+        <LoadingSpinner size="lg" text="Loading Profile Data..." />
+      </div>
+    );
   }
-  
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-neutral-900">My Profile</h1>
         {!isEditing && (
-          <Button 
+          <Button
             onClick={() => setIsEditing(true)}
             leftIcon={<Edit size={16} />}
           >
@@ -196,7 +206,7 @@ const Profile: React.FC = () => {
           </Button>
         )}
       </div>
-      
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <Card>
@@ -217,7 +227,7 @@ const Profile: React.FC = () => {
                     fullWidth
                     required
                   />
-                  
+
                   <Input
                     label="Email"
                     name="email"
@@ -231,7 +241,7 @@ const Profile: React.FC = () => {
                     required
                     disabled
                   />
-                  
+
                   <Input
                     label="Avatar URL"
                     name="avatar"
@@ -243,7 +253,7 @@ const Profile: React.FC = () => {
                     helperText="Provide a URL to your profile picture"
                     fullWidth
                   />
-                  
+
                   {(user.role === 'student' || user.role === 'faculty') && (
                     <Input
                       label="Department"
@@ -255,7 +265,7 @@ const Profile: React.FC = () => {
                       fullWidth
                     />
                   )}
-                  
+
                   {user.role === 'student' && (
                     <Input
                       label="Year"
@@ -299,7 +309,7 @@ const Profile: React.FC = () => {
                       <p className="text-neutral-700">{user.name}</p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-start">
                     <Mail className="w-5 h-5 text-neutral-500 mt-0.5 mr-3" />
                     <div>
@@ -307,19 +317,19 @@ const Profile: React.FC = () => {
                       <p className="text-neutral-700">{user.email}</p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-start">
                     <Badge
                       variant={
                         user.role === 'admin' ? 'primary' :
-                        user.role === 'faculty' ? 'secondary' :
-                        user.role === 'club' ? 'success' : 'neutral'
+                          user.role === 'faculty' ? 'secondary' :
+                            user.role === 'club' ? 'success' : 'neutral'
                       }
                     >
                       {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
                     </Badge>
                   </div>
-                  
+
                   {user.department && (
                     <div className="flex items-start">
                       <div>
@@ -328,7 +338,7 @@ const Profile: React.FC = () => {
                       </div>
                     </div>
                   )}
-                  
+
                   {user.year && (
                     <div className="flex items-start">
                       <div>
@@ -341,44 +351,44 @@ const Profile: React.FC = () => {
               </>
             )}
           </Card>
-          
+
           {user.role === 'student' && (
             <Card>
-                <CardHeader>
-                    <h2 className="text-xl font-semibold text-neutral-900">My Certificates</h2>
-                </CardHeader>
-                <CardBody>
-                    {certificates.length > 0 ? (
-                        <div className="space-y-4">
-                            {certificates.map((cert) => (
-                                <div 
-                                    key={cert.id} 
-                                    className="flex flex-col sm:flex-row sm:items-center p-3 rounded-lg border border-neutral-200"
-                                >
-                                    <div className="flex-grow">
-                                        <h3 className="font-medium text-neutral-900">{cert.eventName}</h3>
-                                        <p className="text-sm text-neutral-500">Issued on: {format(parseISO(cert.issuedAt), 'MMM d, yyyy')}</p>
-                                    </div>
-                                    <div className="mt-2 sm:mt-0">
-                                        <Button 
-                                            size="sm" 
-                                            variant="outline"
-                                            onClick={() => window.open(cert.certificateUrl, '_blank')}
-                                        >
-                                            Download
-                                        </Button>
-                                    </div>
-                                </div>
-                            ))}
+              <CardHeader>
+                <h2 className="text-xl font-semibold text-neutral-900">My Certificates</h2>
+              </CardHeader>
+              <CardBody>
+                {certificates.length > 0 ? (
+                  <div className="space-y-4">
+                    {certificates.map((cert) => (
+                      <div
+                        key={cert.id}
+                        className="flex flex-col sm:flex-row sm:items-center p-3 rounded-lg border border-neutral-200"
+                      >
+                        <div className="flex-grow">
+                          <h3 className="font-medium text-neutral-900">{cert.eventName}</h3>
+                          <p className="text-sm text-neutral-500">Issued on: {format(parseISO(cert.issuedAt), 'MMM d, yyyy')}</p>
                         </div>
-                    ) : (
-                        <div className="text-center py-6">
-                            <Award className="h-12 w-12 text-neutral-400 mx-auto mb-3" />
-                            <h3 className="text-lg font-medium text-neutral-700">No certificates yet</h3>
-                            <p className="text-neutral-500">Attend events to earn certificates!</p>
+                        <div className="mt-2 sm:mt-0">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => window.open(cert.certificateUrl, '_blank')}
+                          >
+                            Download
+                          </Button>
                         </div>
-                    )}
-                </CardBody>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-6">
+                    <Award className="h-12 w-12 text-neutral-400 mx-auto mb-3" />
+                    <h3 className="text-lg font-medium text-neutral-700">No certificates yet</h3>
+                    <p className="text-neutral-500">Attend events to earn certificates!</p>
+                  </div>
+                )}
+              </CardBody>
             </Card>
           )}
 
@@ -390,8 +400,8 @@ const Profile: React.FC = () => {
               {registeredEvents.length > 0 ? (
                 <div className="space-y-4">
                   {registeredEvents.map((event) => (
-                    <div 
-                      key={event.id} 
+                    <div
+                      key={event.id}
                       className="flex flex-col sm:flex-row sm:items-center p-3 rounded-lg border border-neutral-200 hover:bg-neutral-50 cursor-pointer"
                       onClick={() => navigate(`/events/${event.id}`)}
                     >
@@ -403,12 +413,12 @@ const Profile: React.FC = () => {
                           {format(parseISO(event.startDate), 'h:mm a')}
                         </div>
                       </div>
-                      
+
                       <div className="flex-grow">
                         <h3 className="font-medium text-neutral-900">{event.title}</h3>
                         <p className="text-sm text-neutral-500">{event.location}</p>
                       </div>
-                      
+
                       <div className="mt-2 sm:mt-0">
                         <Badge variant="success" size="sm">Registered</Badge>
                       </div>
@@ -420,7 +430,7 @@ const Profile: React.FC = () => {
                   <Calendar className="h-12 w-12 text-neutral-400 mx-auto mb-3" />
                   <h3 className="text-lg font-medium text-neutral-700">No registered events</h3>
                   <p className="text-neutral-500 mb-4">You haven't registered for any events yet.</p>
-                  <Button 
+                  <Button
                     onClick={() => navigate('/events')}
                     variant="outline"
                   >
@@ -430,7 +440,7 @@ const Profile: React.FC = () => {
               )}
             </CardBody>
           </Card>
-          
+
           <Card>
             <CardHeader>
               <h2 className="text-xl font-semibold text-neutral-900">Account Activity</h2>
@@ -445,7 +455,7 @@ const Profile: React.FC = () => {
                   </p>
                 </div>
               </div>
-              
+
               <div className="flex items-start">
                 <Clock className="w-5 h-5 text-neutral-500 mt-0.5 mr-3" />
                 <div>
@@ -458,14 +468,14 @@ const Profile: React.FC = () => {
             </CardBody>
           </Card>
         </div>
-        
+
         <div className="space-y-6">
           <Card>
             <CardBody className="flex flex-col items-center p-6">
               {user.avatar ? (
-                <img 
-                  src={user.avatar} 
-                  alt={user.name} 
+                <img
+                  src={user.avatar}
+                  alt={user.name}
                   className="w-32 h-32 rounded-full object-cover mb-4"
                 />
               ) : (
@@ -480,8 +490,8 @@ const Profile: React.FC = () => {
               <Badge
                 variant={
                   user.role === 'admin' ? 'primary' :
-                  user.role === 'faculty' ? 'secondary' :
-                  user.role === 'club' ? 'success' : 'neutral'
+                    user.role === 'faculty' ? 'secondary' :
+                      user.role === 'club' ? 'success' : 'neutral'
                 }
                 className="mt-2"
               >
@@ -489,7 +499,7 @@ const Profile: React.FC = () => {
               </Badge>
             </CardBody>
           </Card>
-          
+
           <Card>
             <CardHeader>
               <h2 className="text-lg font-semibold text-neutral-900">Quick Actions</h2>
@@ -502,7 +512,7 @@ const Profile: React.FC = () => {
               >
                 Browse Events
               </Button>
-              
+
               <Button
                 variant="outline"
                 fullWidth
@@ -510,7 +520,7 @@ const Profile: React.FC = () => {
               >
                 Explore Clubs
               </Button>
-              
+
               {(user.role === 'admin' || user.role === 'faculty' || user.role === 'club') && (
                 <Button
                   variant="outline"
@@ -522,7 +532,7 @@ const Profile: React.FC = () => {
               )}
             </CardBody>
           </Card>
-          
+
           <Card>
             <CardHeader>
               <h2 className="text-lg font-semibold text-neutral-900">Account Settings</h2>
@@ -535,7 +545,7 @@ const Profile: React.FC = () => {
               >
                 Change Password
               </Button>
-              
+
               <Button
                 variant="outline"
                 fullWidth
@@ -543,7 +553,7 @@ const Profile: React.FC = () => {
               >
                 Notification Settings
               </Button>
-              
+
               <Button
                 variant="outline"
                 fullWidth
@@ -555,7 +565,7 @@ const Profile: React.FC = () => {
           </Card>
         </div>
       </div>
-      
+
       {user.role === 'club' && club && (
         <Card>
           <CardHeader>

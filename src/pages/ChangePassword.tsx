@@ -43,7 +43,7 @@ const ChangePassword: React.FC = () => {
 
     const success = await changePassword(password);
     if (success) {
-      navigate('/dashboard'); // Redirect to dashboard
+      navigate('/events'); // Redirect to dashboard
     }
   };
 

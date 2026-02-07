@@ -275,7 +275,11 @@ const DashboardLayout: React.FC = () => {
 
             <div className="h-8 w-px bg-slate-200 hidden sm:block"></div>
 
-            <div className="hidden sm:flex items-center gap-3 pl-2">
+            <button
+              onClick={() => navigate(profileLink)}
+              className="hidden sm:flex items-center gap-3 pl-2 hover:bg-slate-100 rounded-lg p-2 transition-colors cursor-pointer"
+              title={`Go to ${profileLabel}`}
+            >
               <div className="text-right">
                 <p className="text-sm font-semibold text-slate-800">{user?.name}</p>
                 <p className="text-xs text-slate-500 capitalize">{user?.role}</p>
@@ -289,7 +293,7 @@ const DashboardLayout: React.FC = () => {
                   )}
                 </div>
               </div>
-            </div>
+            </button>
           </div>
         </header>
 

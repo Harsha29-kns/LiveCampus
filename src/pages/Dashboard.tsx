@@ -15,11 +15,10 @@ import { db } from '../firebaseConfig';
 import LoadingSpinner from '../components/ui/LoadingSpinner'; // Import the loading spinner
 
 const Dashboard: React.FC = () => {
-  const { user, setUser } = useAuthStore();
+  const { user } = useAuthStore();
   const { events, fetchEvents, isLoading: isEventsLoading } = useEventStore(); // Get event loading state
   const { clubs, fetchClubs, isLoading: isClubsLoading } = useClubStore(); // Get club loading state
   const [registeredEvents, setRegisteredEvents] = useState<Event[]>([]);
-  const [showProfileForm, setShowProfileForm] = useState(false);
   const navigate = useNavigate();
 
   // Combined loading state to wait for both events and clubs
@@ -268,14 +267,14 @@ const Dashboard: React.FC = () => {
         </Card>
       )}
 
-      {isClubProfileIncomplete && !showProfileForm && (
+      {isClubProfileIncomplete && (
         <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-6 rounded">
           <div className="flex items-center justify-between">
             <span>
               Your club profile is incomplete. Please&nbsp;
               <button
                 className="underline text-primary-700 font-semibold"
-                onClick={() => setShowProfileForm(true)}
+                onClick={() => navigate('/club-profile')}
               >
                 complete your club profile
               </button>

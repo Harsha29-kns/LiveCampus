@@ -1,35 +1,39 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useEventStore } from '../stores/eventStore';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../firebaseConfig';
 import NavigationView from '../components/ui/NavigationView';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import Button from '../components/ui/Button';
 import { AlertCircle, ArrowLeft } from 'lucide-react';
+import { Event } from '../types';
 
 const NavigationPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const { getEventById, fetchEvents } = useEventStore();
-    const [event, setEvent] = useState(getEventById(id || ''));
+    const [event, setEvent] = useState<Event | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         const loadEvent = async () => {
+            if (!id) {
+                setError('No event ID provided.');
+                setIsLoading(false);
+                return;
+            }
+
             setIsLoading(true);
             try {
-                let fetchedEvent = getEventById(id || '');
+                // Fetch event directly from Firestore
+                const eventDoc = await getDoc(doc(db, 'events', id));
 
-                if (!fetchedEvent) {
-                    await fetchEvents();
-                    fetchedEvent = getEventById(id || '');
-                }
-
-                if (fetchedEvent) {
-                    setEvent(fetchedEvent);
+                if (eventDoc.exists()) {
+                    const eventData = { id: eventDoc.id, ...eventDoc.data() } as Event;
+                    setEvent(eventData);
 
                     // Check if venue location exists
-                    if (!fetchedEvent.venueLocation) {
+                    if (!eventData.venueLocation) {
                         setError('Navigation not available - venue location not configured for this event.');
                     }
                 } else {
@@ -44,7 +48,7 @@ const NavigationPage: React.FC = () => {
         };
 
         loadEvent();
-    }, [id, getEventById, fetchEvents]);
+    }, [id]);
 
     if (isLoading) {
         return (
