@@ -367,6 +367,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             updatedAt: new Date().toISOString(),
           };
           await addDoc(collection(db, 'users'), newClubUser);
+
+          // Send credentials email to club
+          try {
+            await fetch('https://live-campus.vercel.app/api/send-club-credentials', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                email: clubEmail,
+                name: row.clubName,
+                password: 'defaultpassword'
+              }),
+            });
+          } catch (emailError) {
+            console.error('Failed to send club credentials email:', emailError);
+          }
         }
 
         // Check if faculty user exists
