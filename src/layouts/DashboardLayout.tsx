@@ -2,12 +2,12 @@ import React, { useState, Fragment, useEffect, useRef } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useNotificationStore } from '../stores/notificationStore';
-import { Home, Calendar, Users, LogOut, Menu, X, BarChart, ClipboardCheck, Building, Trophy, Settings, Bell, ChevronRight, Globe } from 'lucide-react';
+import { Home, Calendar, Users, LogOut, Menu, X, BarChart, ClipboardCheck, Building, Trophy, Settings, Bell, ChevronRight, Globe, Trash2, CheckCheck, Ticket } from 'lucide-react';
 import { Dialog, Transition } from '@headlessui/react';
 
 const DashboardLayout: React.FC = () => {
   const { user, logout } = useAuthStore();
-  const { fetchNotifications, unreadCount, notifications, markAsRead } = useNotificationStore();
+  const { fetchNotifications, unreadCount, notifications, markAsRead, markAllAsRead, deleteAllNotifications } = useNotificationStore();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -52,8 +52,10 @@ const DashboardLayout: React.FC = () => {
   const baseMenuItems = [
     { to: '/', icon: <Home size={20} />, label: 'Dashboard', roles: ['admin', 'faculty', 'student', 'club'] },
     { to: '/public-events', icon: <Globe size={20} />, label: 'Public Events', roles: ['admin', 'faculty', 'student', 'club'] },
-    { to: '/events', icon: <Calendar size={20} />, label: 'My Events', roles: ['admin', 'faculty', 'student', 'club'] },
-    { to: '/clubs', icon: <Users size={20} />, label: 'Clubs', roles: ['admin', 'faculty', 'student', 'club'] },
+    { to: '/events', icon: <Calendar size={20} />, label: 'Events', roles: ['admin', 'faculty', 'student', 'club'] },
+    { to: '/tickets', icon: <Ticket size={20} />, label: 'Support', roles: ['student'] },
+    { to: '/club/tickets', icon: <Ticket size={20} />, label: 'Tickets', roles: ['club'] },
+    { to: '/clubs', icon: <Building size={20} />, label: 'Clubs', roles: ['admin', 'faculty', 'student', 'club'] },
     { to: profileLink, icon: profileIcon, label: profileLabel, roles: ['admin', 'faculty', 'student', 'club'] },
     { to: '/leaderboard', icon: <Trophy size={20} />, label: 'Leaderboard', roles: ['admin', 'faculty', 'student', 'club'] },
   ];
@@ -242,33 +244,107 @@ const DashboardLayout: React.FC = () => {
                 leaveFrom="transform opacity-100 scale-100"
                 leaveTo="transform opacity-0 scale-95"
               >
-                <div className="absolute right-0 mt-2 w-80 bg-white shadow-xl rounded-2xl overflow-hidden ring-1 ring-black/5 z-50 origin-top-right">
-                  <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                    <span className="font-semibold text-slate-800">Notifications</span>
-                    {unreadCount > 0 && (
-                      <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full">{unreadCount} New</span>
-                    )}
-                  </div>
-                  <div className="max-h-80 overflow-y-auto">
-                    {notifications.length > 0 ? (
-                      notifications.map((n) => (
-                        <div
-                          key={n.id}
-                          onClick={() => handleNotificationClick(n.id)}
-                          className={`p-4 border-b border-slate-50 cursor-pointer hover:bg-slate-50 transition-colors ${!n.read ? 'bg-blue-50/30' : ''}`}
+                <div className="absolute right-0 mt-2 w-96 bg-white shadow-2xl rounded-2xl overflow-hidden ring-1 ring-black/5 z-50 origin-top-right">
+                  {/* Header */}
+                  <div className="p-4 border-b border-slate-100 bg-gradient-to-r from-indigo-50 to-purple-50">
+                    <div className="flex justify-between items-center mb-2">
+                      <h3 className="font-bold text-slate-800 text-lg">Notifications</h3>
+                      {unreadCount > 0 && (
+                        <span className="text-xs font-semibold text-white bg-red-500 px-2.5 py-1 rounded-full">
+                          {unreadCount} New
+                        </span>
+                      )}
+                    </div>
+                    {/* Action Buttons */}
+                    {notifications.length > 0 && (
+                      <div className="flex gap-2 mt-2">
+                        <button
+                          onClick={() => {
+                            if (user) markAllAsRead(user.id);
+                          }}
+                          className="flex items-center gap-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-700 bg-white hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors"
                         >
-                          <p className="text-sm font-semibold text-slate-800">{n.title}</p>
-                          <p className="text-sm text-slate-600 mt-1 line-clamp-2">{n.message}</p>
-                          <p className="text-xs text-slate-400 mt-2">{new Date(n.createdAt).toLocaleString()}</p>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="flex flex-col items-center justify-center py-8 text-slate-400">
-                        <Bell size={24} className="mb-2 opacity-20" />
-                        <p className="text-sm">No notifications</p>
+                          <CheckCheck size={14} />
+                          Mark all read
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (user && confirm('Clear all notifications?')) {
+                              deleteAllNotifications(user.id);
+                              setNotificationsOpen(false);
+                            }
+                          }}
+                          className="flex items-center gap-1.5 text-xs font-medium text-red-600 hover:text-red-700 bg-white hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors"
+                        >
+                          <Trash2 size={14} />
+                          Clear all
+                        </button>
                       </div>
                     )}
                   </div>
+
+                  {/* Notification List */}
+                  <div className="max-h-[28rem] overflow-y-auto">
+                    {notifications.length > 0 ? (
+                      notifications.slice(0, 20).map((n) => {
+                        const typeColors = {
+                          info: 'bg-blue-100 text-blue-600',
+                          success: 'bg-green-100 text-green-600',
+                          warning: 'bg-yellow-100 text-yellow-600',
+                          error: 'bg-red-100 text-red-600',
+                        };
+                        const typeIcons = {
+                          info: '📢',
+                          success: '✅',
+                          warning: '⚠️',
+                          error: '❌',
+                        };
+
+                        return (
+                          <div
+                            key={n.id}
+                            onClick={() => handleNotificationClick(n.id)}
+                            className={`p-4 border-b border-slate-100 cursor-pointer hover:bg-slate-50 transition-all ${!n.read ? 'bg-indigo-50/40 border-l-4 border-l-indigo-500' : ''
+                              }`}
+                          >
+                            <div className="flex gap-3">
+                              <div className={`flex-shrink-0 w-8 h-8 rounded-full ${typeColors[n.type || 'info']} flex items-center justify-center text-sm`}>
+                                {typeIcons[n.type || 'info']}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-start justify-between gap-2">
+                                  <p className="text-sm font-semibold text-slate-800 line-clamp-1">{n.title}</p>
+                                  {!n.read && (
+                                    <span className="flex-shrink-0 w-2 h-2 rounded-full bg-indigo-500 mt-1.5" />
+                                  )}
+                                </div>
+                                <p className="text-sm text-slate-600 mt-1 line-clamp-2">{n.message}</p>
+                                <p className="text-xs text-slate-400 mt-2 flex items-center gap-1">
+                                  <Calendar size={12} />
+                                  {new Date(n.createdAt).toLocaleDateString()} at {new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                        <Bell size={48} className="mb-3 opacity-20" />
+                        <p className="text-sm font-medium">No notifications yet</p>
+                        <p className="text-xs mt-1">You're all caught up!</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Footer - only show if more than 20 notifications */}
+                  {notifications.length > 20 && (
+                    <div className="p-3 bg-slate-50 text-center border-t border-slate-100">
+                      <p className="text-xs text-slate-500">
+                        Showing latest 20 of {notifications.length} notifications
+                      </p>
+                    </div>
+                  )}
                 </div>
               </Transition>
             </div>

@@ -57,15 +57,15 @@ const PublicLayout: React.FC = () => {
             </div>
 
             <div className="flex space-x-6">
-              <a href="#" className="text-black-500 hover:text-neutral-900 transition-colors">
+              <Link to="/terms" className="text-black-500 hover:text-neutral-900 transition-colors">
                 Terms
-              </a>
-              <a href="#" className="text-black-500 hover:text-neutral-900 transition-colors">
+              </Link>
+              <Link to="/privacy" className="text-black-500 hover:text-neutral-900 transition-colors">
                 Privacy
-              </a>
-              <a href="#" className="text-black-500 hover:text-neutral-900 transition-colors">
+              </Link>
+              <Link to="/contact" className="text-black-500 hover:text-neutral-900 transition-colors">
                 Support
-              </a>
+              </Link>
             </div>
 
             <div className="mt-4 md:mt-0">

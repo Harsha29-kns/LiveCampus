@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Calendar, Mail, Lock } from 'lucide-react';
+import { Calendar, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import { useAuthStore } from '../stores/authStore';
@@ -8,6 +8,7 @@ import { useAuthStore } from '../stores/authStore';
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   const { login, isLoading, signInWithGoogle } = useAuthStore();
   const navigate = useNavigate();
@@ -70,7 +71,7 @@ const Login: React.FC = () => {
             </Link>
           </p>
         </div>
-        
+
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-4">
             <Input
@@ -84,11 +85,22 @@ const Login: React.FC = () => {
               fullWidth
               required
             />
-            
+
             <Input
               label="Password"
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               leftIcon={<Lock size={16} />}
+              rightIcon={
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="text-gray-400 hover:text-gray-600 focus:outline-none"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              }
+              rightIconInteractive
               placeholder="Enter your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}

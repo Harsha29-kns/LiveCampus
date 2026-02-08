@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../firebaseConfig';
-import { collection, query, where, getDocs, updateDoc, doc, getDoc, deleteDoc } from 'firebase/firestore'; // Import deleteDoc
+import { collection, query, where, getDocs, updateDoc, doc, getDoc, deleteDoc, addDoc } from 'firebase/firestore';
 import { useEventStore } from '../stores/eventStore'; // Import the store
 import Button from '../components/ui/Button';
 import toast from 'react-hot-toast';
@@ -61,7 +61,7 @@ const VerifyPayments: React.FC = () => {
             await updateDoc(doc(db, 'eventRegistrations', registration.id), {
                 paymentVerified: true
             });
-            
+
             setRegistrations(regs =>
                 regs.map(r => r.id === registration.id ? { ...r, paymentVerified: true } : r)
             );
@@ -82,6 +82,17 @@ const VerifyPayments: React.FC = () => {
                 });
                 toast.success('Verification email sent!');
             }
+
+            // Create in-app notification
+            const notificationRef = collection(db, 'notifications');
+            await addDoc(notificationRef, {
+                userId: registration.userId,
+                title: 'Payment Verified',
+                message: `Your payment for "${event?.title}" has been verified! You can now access your QR code.`,
+                type: 'success',
+                read: false,
+                createdAt: new Date().toISOString()
+            });
         } catch (error) {
             toast.error('An error occurred during verification.');
         } finally {
@@ -92,7 +103,7 @@ const VerifyPayments: React.FC = () => {
     const handleRejectPayment = async (registration: any) => {
         const rejectionReason = prompt("Please provide a reason for rejection (this will be sent to the student):");
         if (rejectionReason === null) return;
-        
+
         setActionId(registration.id);
         try {
             // First, send the rejection email
@@ -111,6 +122,17 @@ const VerifyPayments: React.FC = () => {
                     }),
                 });
                 toast.success('Rejection email sent to student.');
+
+                // Create in-app notification for rejection
+                const notificationRef = collection(db, 'notifications');
+                await addDoc(notificationRef, {
+                    userId: registration.userId,
+                    title: 'Payment Rejected',
+                    message: `Your payment for "${event?.title}" was rejected. Reason: ${rejectionReason}. Please contact the organizers.`,
+                    type: 'error',
+                    read: false,
+                    createdAt: new Date().toISOString()
+                });
             }
 
             // Now, cancel the registration to remove them and update the count
@@ -119,7 +141,7 @@ const VerifyPayments: React.FC = () => {
                 setRegistrations(regs => regs.filter(r => r.id !== registration.id));
                 toast.error('Payment rejected and registration removed.');
             } else {
-                 throw new Error("Failed to cancel registration in store.");
+                throw new Error("Failed to cancel registration in store.");
             }
 
         } catch (error) {
@@ -129,7 +151,7 @@ const VerifyPayments: React.FC = () => {
             setActionId(null);
         }
     };
-    
+
     const getStatusComponent = (reg: any) => {
         if (reg.paymentVerified === true) {
             return <Badge variant="success"><CheckCircle size={14} className="mr-1" /> Verified</Badge>;
@@ -152,7 +174,7 @@ const VerifyPayments: React.FC = () => {
             </Button>
             <h1 className="text-3xl font-bold text-gray-900">Verify Payments</h1>
             <p className="text-gray-600 mb-6">Event: {event?.title}</p>
-            
+
             <div className="bg-white rounded-lg border shadow-sm">
                 <div className="divide-y divide-gray-200">
                     {registrations.filter(r => r.transactionId).length > 0 ? registrations.filter(r => r.transactionId).map(reg => (

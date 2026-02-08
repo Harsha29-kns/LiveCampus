@@ -12,6 +12,7 @@ interface NotificationState {
   markAsRead: (id: string) => Promise<boolean>;
   markAllAsRead: (userId: string) => Promise<boolean>;
   deleteNotification: (id: string) => Promise<boolean>;
+  deleteAllNotifications: (userId: string) => Promise<boolean>;
   addNotification: (notification: Partial<Notification>) => Promise<Notification | null>;
 }
 
@@ -74,16 +75,43 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     }
   },
 
-  addNotification: async (notification) => {
+  deleteAllNotifications: async (userId) => {
     try {
-      const docRef = await addDoc(collection(db, 'notifications'), {
+      const q = query(collection(db, 'notifications'), where('userId', '==', userId));
+      const snapshot = await getDocs(q);
+      const deletePromises = snapshot.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(deletePromises);
+      toast.success('All notifications cleared');
+      return true;
+    } catch (error) {
+      toast.error('Failed to clear notifications');
+      return false;
+    }
+  },
+
+  addNotification: async (notification) => {
+    console.log('📝 addNotification called with:', notification);
+    try {
+      const notificationData = {
         ...notification,
         read: false,
         createdAt: new Date().toISOString(),
-      });
-      toast.success('Notification added');
+      };
+      console.log('💾 Writing to Firestore:', notificationData);
+
+      const docRef = await addDoc(collection(db, 'notifications'), notificationData);
+      console.log('✅ Firestore write successful. Doc ID:', docRef.id);
+
+      // Remove the toast - too noisy when creating many notifications
+      // toast.success('Notification added');
       return { id: docRef.id, ...notification } as Notification;
-    } catch (error) {
+    } catch (error: any) {
+      console.error('❌ addNotification failed:', error);
+      console.error('Error details:', {
+        name: error?.name,
+        message: error?.message,
+        code: error?.code
+      });
       toast.error('Failed to add notification');
       return null;
     }

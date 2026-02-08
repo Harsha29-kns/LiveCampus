@@ -151,6 +151,37 @@ export interface Notification {
   createdAt: string;
 }
 
+// Support Ticket System
+export interface Ticket {
+  id: string;
+  eventId: string;
+  eventTitle?: string;        // Populated from events
+  studentId: string;
+  studentName?: string;       // Populated from users
+  clubId: string;
+  clubName?: string;          // Populated from clubs
+  subject: string;
+  status: 'open' | 'in_progress' | 'resolved' | 'closed';
+  category: 'payment' | 'registration' | 'venue' | 'certificate' | 'other';
+  lastMessage?: string;       // Preview of last message
+  lastMessageBy?: 'student' | 'club';
+  unreadByStudent: boolean;
+  unreadByClub: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TicketMessage {
+  id: string;
+  ticketId: string;
+  senderId: string;
+  senderRole: 'student' | 'club';
+  senderName?: string;        // Populated from users/clubs
+  message: string;
+  read: boolean;
+  createdAt: string;
+}
+
 export interface ClubFacultyCSVRow {
   clubName: string;
   clubEmail: string; // Added field

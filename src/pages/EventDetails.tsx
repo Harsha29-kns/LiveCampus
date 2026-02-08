@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-    Calendar, MapPin, Users, ArrowLeft, Edit, Trash2, CheckCircle, XCircle, Download,
-    Share2, Info, AlertTriangle, PartyPopper, Ticket, Settings, ClipboardList, Star, Smartphone, Phone, Lock, Clock as ClockIcon, AlertCircle, Navigation
+    Calendar, MapPin, Users, ArrowLeft, Trash2, CheckCircle, XCircle, Download,
+    Share2, Info, AlertTriangle, PartyPopper, Ticket, Settings, ClipboardList, Star, Lock, Clock as ClockIcon, AlertCircle, Navigation
 } from 'lucide-react';
 import { useEventStore } from '../stores/eventStore';
 import { useAuthStore } from '../stores/authStore';
@@ -44,6 +44,7 @@ const EventDetails: React.FC = () => {
         regNo: '', name: user?.name || '', branch: '', department: user?.department || '', phone: '',
         // Team registration fields
         teamSize: 1,
+        teamName: '', // Team name for hackathons
         teamLead: {
             name: user?.name || '',
             regNo: '',
@@ -121,7 +122,7 @@ const EventDetails: React.FC = () => {
             setIsRegistered(!snapshot.empty);
             if (!snapshot.empty) {
                 const regData = snapshot.docs[0].data();
-                setRegistrationData(regData);
+                setRegistrationData({ id: snapshot.docs[0].id, ...regData });
                 setAttended(regData.status === 'attended');
                 if (event.eventType === 'paid') {
                     if (regData.paymentVerified === true) {
@@ -403,6 +404,29 @@ const EventDetails: React.FC = () => {
             return;
         }
 
+        // Validate team name uniqueness for team events
+        if (event.isTeamEvent && registrationData.teamSize > 1) {
+            if (!registrationData.teamName || registrationData.teamName.trim().length < 3) {
+                toast.error('Please enter a team name (minimum 3 characters)');
+                setIsActionLoading(false);
+                return;
+            }
+
+            // Check if team name already exists for this event
+            const existingTeamQuery = query(
+                collection(db, 'eventRegistrations'),
+                where('eventId', '==', id),
+                where('teamName', '==', registrationData.teamName.trim())
+            );
+            const existingTeamSnap = await getDocs(existingTeamQuery);
+
+            if (!existingTeamSnap.empty) {
+                toast.error('This team name is already taken for this event. Please choose a different name.');
+                setIsActionLoading(false);
+                return;
+            }
+        }
+
         try {
             let transactionImageUrl = '';
             if (transactionImage) {
@@ -428,6 +452,9 @@ const EventDetails: React.FC = () => {
             // Add team registration data if it's a team event
             if (event.isTeamEvent) {
                 registrationPayload.teamSize = registrationData.teamSize;
+                if (registrationData.teamSize > 1) {
+                    registrationPayload.teamName = registrationData.teamName.trim();
+                }
                 registrationPayload.teamLead = {
                     ...registrationData.teamLead,
                     department: user.department
@@ -541,44 +568,153 @@ const EventDetails: React.FC = () => {
         : '';
 
     return (
-        <div className="bg-gray-50 min-h-screen animate-fade-in">
-            <div className="relative h-72 md:h-96 w-full">
-                <img src={event.image || `https://source.unsplash.com/1600x900/?${event.tags?.[0] || 'event'}`} alt={event.title} className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent" />
-                <div className="absolute inset-0 flex flex-col justify-end text-white p-4 md:p-8">
-                    <div className="max-w-7xl mx-auto w-full">
-                        <div className="absolute top-4 left-4 md:top-6 md:left-6"><Button variant="ghost" size="sm" leftIcon={<ArrowLeft size={16} />} onClick={() => navigate('/events')}>Back to Events</Button></div>
-                        {isOrganizer && isApproved && !isCompleted && (<div className="absolute top-4 right-4 md:top-6 md:right-6 flex gap-2"><Button variant="ghost" size="sm" leftIcon={<Download size={16} />} onClick={handleDownloadTeamList}>Download List</Button><Button variant="ghost" size="sm" leftIcon={<Edit size={16} />} onClick={() => navigate(`/events/edit/${event.id}`)}>Edit</Button><Button variant="danger" size="sm" leftIcon={<Trash2 size={16} />} onClick={handleDelete} isLoading={isActionLoading}>Delete</Button></div>)}
-                        <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight drop-shadow-lg">{event.title}</h1>
-                        <p className="mt-2 text-lg md:text-xl text-gray-200 drop-shadow-md">Organized by {event.organizerName}</p>
+        <div className="bg-gradient-to-br from-gray-50 via-indigo-50/30 to-purple-50/20 min-h-screen">
+            {/* Enhanced Hero Section */}
+            <div className="relative h-80 md:h-[32rem] w-full overflow-hidden">
+                {/* Hero Image with Parallax Effect */}
+                <div className="absolute inset-0 transform scale-105">
+                    <img
+                        src={event.image || `https://source.unsplash.com/1600x900/?${event.tags?.[0] || 'event'}`}
+                        alt={event.title}
+                        className="w-full h-full object-cover animate-fade-in"
+                    />
+                </div>
+
+                {/* Dynamic Gradient Overlay */}
+                <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/90 via-purple-900/85 to-pink-900/80" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent" />
+
+                {/* Decorative Elements */}
+                <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-purple-500/20 to-transparent rounded-full blur-3xl" />
+                <div className="absolute bottom-0 left-0 w-96 h-96 bg-gradient-to-tr from-indigo-500/20 to-transparent rounded-full blur-3xl" />
+
+                {/* Content Container */}
+                <div className="absolute inset-0 flex flex-col justify-between text-white p-4 md:p-8">
+                    {/* Navigation Buttons */}
+                    <div className="max-w-7xl mx-auto w-full flex justify-between items-start">
+                        <button
+                            onClick={() => navigate('/events')}
+                            className="group flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105"
+                        >
+                            <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
+                            <span className="font-medium">Back</span>
+                        </button>
+
+                        {isOrganizer && isApproved && !isCompleted && (
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={handleDownloadTeamList}
+                                    className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105"
+                                >
+                                    <Download size={16} />
+                                    <span className="hidden md:inline font-medium">Download</span>
+                                </button>
+
+                                <button
+                                    onClick={handleDelete}
+                                    disabled={isActionLoading}
+                                    className="flex items-center gap-2 px-4 py-2 bg-red-600/80 hover:bg-red-600 backdrop-blur-md border border-red-400/30 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 disabled:opacity-50"
+                                >
+                                    <Trash2 size={16} />
+                                    <span className="hidden md:inline font-medium">Delete</span>
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Hero Title Section */}
+                    <div className="max-w-7xl mx-auto w-full space-y-4">
+                        <div className="space-y-3">
+                            <h1 className="text-5xl md:text-7xl font-black tracking-tight drop-shadow-2xl animate-fade-in bg-gradient-to-r from-white via-purple-100 to-pink-100 bg-clip-text text-transparent">
+                                {event.title}
+                            </h1>
+                            <div className="flex items-center gap-3 text-lg md:text-2xl text-white/90 drop-shadow-lg">
+                                <div className="h-1 w-12 bg-gradient-to-r from-purple-400 to-pink-400 rounded-full" />
+                                <p className="font-semibold">Organized by {event.organizerName}</p>
+                            </div>
+                        </div>
+
+                        {/* Quick Info Pills */}
+                        <div className="flex flex-wrap gap-3 pt-2">
+                            <div className="flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md border border-white/20 rounded-full shadow-lg">
+                                <Calendar size={16} className="text-purple-300" />
+                                <span className="text-sm font-medium">{format(parseISO(event.startDate), 'MMM d, yyyy')}</span>
+                            </div>
+                            <div className="flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md border border-white/20 rounded-full shadow-lg">
+                                <MapPin size={16} className="text-pink-300" />
+                                <span className="text-sm font-medium">{event.location}</span>
+                            </div>
+                            <div className="flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md border border-white/20 rounded-full shadow-lg">
+                                <Users size={16} className="text-indigo-300" />
+                                <span className="text-sm font-medium">{event.registeredCount} / {event.capacity || '∞'}</span>
+                            </div>
+                            {event.eventType === 'paid' && (
+                                <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 backdrop-blur-md border border-yellow-400/30 rounded-full shadow-lg">
+                                    <Ticket size={16} className="text-yellow-300" />
+                                    <span className="text-sm font-bold">₹{event.eventFee}</span>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
             <div className="max-w-7xl mx-auto p-4 md:p-8">
                 <div className="lg:grid lg:grid-cols-3 lg:gap-8 items-start">
                     <main className="lg:col-span-2 space-y-8 mb-8 lg:mb-0">
-                        {isPending && <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 p-4 rounded-r-md flex items-center gap-3"><AlertTriangle /><div><p className="font-bold">Pending Approval</p><p>This event is awaiting administrator review.</p></div></div>}
-                        {isCancelled && <div className="bg-gray-100 border-l-4 border-gray-500 text-gray-800 p-4 rounded-r-md flex items-center gap-3"><Info /><div><p className="font-bold">Event Cancelled</p></div></div>}
+                        {/* Modern Status Alerts */}
+                        {isPending && (
+                            <div className="bg-gradient-to-r from-yellow-50 to-amber-50 border-2 border-yellow-300/50 text-yellow-900 p-5 rounded-2xl flex items-center gap-4 shadow-lg animate-fade-in">
+                                <div className="p-3 bg-yellow-400/20 rounded-xl">
+                                    <AlertTriangle className="text-yellow-600" size={24} />
+                                </div>
+                                <div>
+                                    <p className="font-bold text-lg">Pending Approval</p>
+                                    <p className="text-sm text-yellow-700">This event is awaiting administrator review.</p>
+                                </div>
+                            </div>
+                        )}
+                        {isCancelled && (
+                            <div className="bg-gradient-to-r from-gray-50 to-slate-50 border-2 border-gray-300/50 text-gray-900 p-5 rounded-2xl flex items-center gap-4 shadow-lg animate-fade-in">
+                                <div className="p-3 bg-gray-400/20 rounded-xl">
+                                    <Info className="text-gray-600" size={24} />
+                                </div>
+                                <div>
+                                    <p className="font-bold text-lg">Event Cancelled</p>
+                                </div>
+                            </div>
+                        )}
                         {isRejected && (
-                            <div className="bg-red-100 border-l-4 border-red-500 text-red-800 p-4 rounded-r-md">
-                                <div className="flex items-center gap-3">
-                                    <XCircle />
+                            <div className="bg-gradient-to-r from-red-50 to-rose-50 border-2 border-red-300/50 text-red-900 p-5 rounded-2xl shadow-lg animate-fade-in">
+                                <div className="flex items-center gap-4">
+                                    <div className="p-3 bg-red-400/20 rounded-xl">
+                                        <XCircle className="text-red-600" size={24} />
+                                    </div>
                                     <div>
-                                        <p className="font-bold">Event Rejected</p>
-                                        <p>This event was rejected.</p>
+                                        <p className="font-bold text-lg">Event Rejected</p>
+                                        <p className="text-sm text-red-700">This event was rejected by the administrator.</p>
                                     </div>
                                 </div>
                                 {event.rejectionReason && (
-                                    <div className="mt-2 pl-9">
-                                        <p className="font-semibold text-sm">Reason:</p>
-                                        <p className="text-sm bg-red-50 p-2 rounded mt-1 border border-red-200">
+                                    <div className="mt-4 ml-16">
+                                        <p className="font-semibold text-sm mb-2">Rejection Reason:</p>
+                                        <p className="text-sm bg-white/60 p-3 rounded-xl border border-red-200 shadow-sm">
                                             {event.rejectionReason}
                                         </p>
                                     </div>
                                 )}
                             </div>
                         )}
-                        {isCompleted && <div className="bg-blue-100 border-l-4 border-blue-500 text-blue-800 p-4 rounded-r-md flex items-center gap-3"><CheckCircle /><div><p className="font-bold">Event Completed</p></div></div>}
+                        {isCompleted && (
+                            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-300/50 text-blue-900 p-5 rounded-2xl flex items-center gap-4 shadow-lg animate-fade-in">
+                                <div className="p-3 bg-blue-400/20 rounded-xl">
+                                    <CheckCircle className="text-blue-600" size={24} />
+                                </div>
+                                <div>
+                                    <p className="font-bold text-lg">Event Completed</p>
+                                    <p className="text-sm text-blue-700">This event has successfully concluded.</p>
+                                </div>
+                            </div>
+                        )}
 
                         {isFacultyReviewer && (
                             <Card className="border-indigo-300 bg-indigo-50">
@@ -633,9 +769,14 @@ const EventDetails: React.FC = () => {
                             )
                         )}
 
-                        <Card>
-                            <CardHeader><h2 className="text-2xl font-bold text-gray-900">About This Event</h2></CardHeader>
-                            <CardBody>
+                        {/* About Event Card with Modern Design */}
+                        <Card className="shadow-xl border-2 border-gray-200/50 hover:shadow-2xl transition-all duration-300 rounded-2xl overflow-hidden">
+                            <CardHeader className="bg-gradient-to-r from-indigo-50 to-purple-50 border-b-2 border-gray-200/50">
+                                <h2 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                                    About This Event
+                                </h2>
+                            </CardHeader>
+                            <CardBody className="p-6">
                                 <div className="mb-4 flex flex-wrap gap-4">
                                     {event.category && (
                                         <div className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-sm font-semibold border border-indigo-100">
@@ -701,9 +842,14 @@ const EventDetails: React.FC = () => {
                             </CardBody>
                         </Card>
 
+                        {/* Organizer Card with Modern Design */}
                         {club && (
-                            <Card>
-                                <CardHeader><h2 className="text-2xl font-bold text-gray-900">Organizer Information</h2></CardHeader>
+                            <Card className="shadow-xl border-2 border-indigo-200/50 hover:shadow-2xl transition-all duration-300 rounded-2xl overflow-hidden">
+                                <CardHeader className="bg-gradient-to-r from-indigo-50 to-blue-50 border-b-2 border-indigo-200/50">
+                                    <h2 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">
+                                        Organizer Information
+                                    </h2>
+                                </CardHeader>
                                 <CardBody className="text-gray-700 space-y-3">
                                     <div><strong className="block text-gray-900">Club Name</strong> {club.name}</div>
                                     <div><strong className="block text-gray-900">Faculty Advisor</strong> {club.facultyAdvisor}</div>
@@ -713,10 +859,15 @@ const EventDetails: React.FC = () => {
                             </Card>
                         )}
 
+                        {/* Feedback Card with Modern Design */}
                         {isCompleted && attended && (
-                            <Card>
-                                <CardHeader><h2 className="text-2xl font-bold text-gray-900">Event Feedback</h2></CardHeader>
-                                <CardBody>
+                            <Card className="shadow-xl border-2 border-green-200/50 hover:shadow-2xl transition-all duration-300 rounded-2xl overflow-hidden">
+                                <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 border-b-2 border-green-200/50">
+                                    <h2 className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                                        Event Feedback
+                                    </h2>
+                                </CardHeader>
+                                <CardBody className="p-6">
                                     {hasGivenFeedback ? (
                                         <div className="bg-green-50 text-green-800 p-4 rounded-lg flex items-center gap-3">
                                             <CheckCircle />
@@ -758,9 +909,10 @@ const EventDetails: React.FC = () => {
                         )}
                     </main>
 
+                    {/* Premium Sidebar */}
                     <aside className="lg:col-span-1 lg:sticky lg:top-8 space-y-6">
-                        <Card className="shadow-lg">
-                            <CardBody className="space-y-4">
+                        <Card className="shadow-2xl border-2 border-indigo-200/50 hover:shadow-indigo-200/50 transition-all duration-300 rounded-2xl overflow-hidden bg-gradient-to-br from-white via-indigo-50/20 to-purple-50/20">
+                            <CardBody className="space-y-6 p-6">
                                 <div className="flex items-start gap-4">
                                     <Calendar className="w-5 h-5 text-indigo-600 mt-1 flex-shrink-0" />
                                     <p className="text-gray-700"><strong className="block text-gray-900">Event Date & Time</strong>{formattedDate}<br />{formattedTime}</p>
@@ -790,27 +942,71 @@ const EventDetails: React.FC = () => {
                                     isRegistered ? (
                                         <>
                                             {paymentStatus === 'verified' && (
-                                                <div className="text-center space-y-4">
-                                                    <div className="p-3 bg-green-50 text-green-700 rounded-lg font-semibold"><CheckCircle className="inline-block w-5 h-5 mr-2" /> Payment Verified!</div>
-                                                    <div className="flex flex-col items-center pt-2"><p className="mb-3 text-sm text-gray-500">Show this QR at check-in:</p><div ref={qrRef} className="bg-white p-2 rounded-lg border"><QRCode value={JSON.stringify({ eventId: event.id, userId: user?.id })} size={180} level="H" /></div><Button className="mt-3" size="sm" variant="outline" onClick={handleDownloadQR}>Download QR</Button></div>
+                                                <div className="text-center space-y-5 animate-fade-in">
+                                                    <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300/50 text-green-800 rounded-2xl font-bold shadow-lg">
+                                                        <CheckCircle className="inline-block w-6 h-6 mr-2 text-green-600" />
+                                                        Payment Verified!
+                                                    </div>
+                                                    <div className="flex flex-col items-center pt-2">
+                                                        <p className="mb-4 text-sm font-medium text-gray-600">Show this QR at check-in:</p>
+                                                        <div className="relative">
+                                                            <div className="absolute -inset-2 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-2xl blur opacity-20"></div>
+                                                            <div ref={qrRef} className="relative bg-white p-4 rounded-2xl border-2 border-indigo-200 shadow-xl">
+                                                                <QRCode value={JSON.stringify({
+                                                                    eventId: event.id,
+                                                                    userId: user?.id,
+                                                                    registrationId: registrationData.id, // Include registration ID for team lookup
+                                                                    isTeamLead: event.isTeamEvent && registrationData.teamSize > 1 // Flag for team lead
+                                                                })} size={200} level="H" />
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            onClick={handleDownloadQR}
+                                                            className="mt-4 px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
+                                                        >
+                                                            Download QR Code
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             )}
                                             {paymentStatus === 'pending' && (
-                                                <div className="p-4 bg-yellow-100 text-yellow-800 rounded-lg text-center">
+                                                <div className="p-5 bg-gradient-to-r from-yellow-50 to-amber-50 border-2 border-yellow-300/50 text-yellow-900 rounded-2xl text-center shadow-lg animate-fade-in">
                                                     <p className="font-semibold">Your payment is under verification.</p>
                                                     <p className="text-sm mt-1">You will get an email from the club once it's approved. After that, you can download your QR code here.</p>
                                                 </div>
                                             )}
                                             {paymentStatus === 'rejected' && (
-                                                <div className="p-4 bg-red-100 text-red-800 rounded-lg text-center">
-                                                    <p className="font-bold">Your payment was rejected by the organizer.</p>
-                                                    <p className="text-sm mt-1">If you have any questions, please contact the event organizer directly.</p>
+                                                <div className="p-5 bg-gradient-to-r from-red-50 to-rose-50 border-2 border-red-300/50 text-red-900 rounded-2xl text-center shadow-lg animate-fade-in">
+                                                    <p className="font-bold text-lg">Payment Rejected</p>
+                                                    <p className="text-sm mt-2 text-red-700">Your payment was rejected by the organizer. Please contact them for more details.</p>
                                                 </div>
                                             )}
                                             {event.eventType === 'free' && (
-                                                <div className="text-center space-y-4">
-                                                    <div className="p-3 bg-green-50 text-green-700 rounded-lg font-semibold"><PartyPopper className="inline-block w-5 h-5 mr-2" /> You're registered!</div>
-                                                    <div className="flex flex-col items-center pt-2"><p className="mb-3 text-sm text-gray-500">Show this QR at check-in:</p><div ref={qrRef} className="bg-white p-2 rounded-lg border"><QRCode value={JSON.stringify({ eventId: event.id, userId: user?.id })} size={180} level="H" /></div><Button className="mt-3" size="sm" variant="outline" onClick={handleDownloadQR}>Download QR</Button></div>
+                                                <div className="text-center space-y-5 animate-fade-in">
+                                                    <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300/50 text-green-800 rounded-2xl font-bold shadow-lg">
+                                                        <PartyPopper className="inline-block w-6 h-6 mr-2 text-green-600" />
+                                                        You're Registered!
+                                                    </div>
+                                                    <div className="flex flex-col items-center pt-2">
+                                                        <p className="mb-4 text-sm font-medium text-gray-600">Show this QR at check-in:</p>
+                                                        <div className="relative">
+                                                            <div className="absolute -inset-2 bg-gradient-to-r from-green-500 to-emerald-500 rounded-2xl blur opacity-20"></div>
+                                                            <div ref={qrRef} className="relative bg-white p-4 rounded-2xl border-2 border-green-200 shadow-xl">
+                                                                <QRCode value={JSON.stringify({
+                                                                    eventId: event.id,
+                                                                    userId: user?.id,
+                                                                    registrationId: registrationData.id,
+                                                                    isTeamLead: event.isTeamEvent && registrationData.teamSize > 1
+                                                                })} size={200} level="H" />
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            onClick={handleDownloadQR}
+                                                            className="mt-4 px-6 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
+                                                        >
+                                                            Download QR Code
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             )}
                                             {paymentStatus !== 'rejected' && (
@@ -841,26 +1037,35 @@ const EventDetails: React.FC = () => {
                                         </div>
                                     ) : (
                                         user?.role === 'student' ? (
-                                            <form onSubmit={handleStudentRegister} className="space-y-4">
-                                                <h3 className="text-xl font-bold text-gray-800 text-center">Register Now</h3>
+                                            <form onSubmit={handleStudentRegister} className="space-y-6">
+                                                <div className="text-center">
+                                                    <h3 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">Register Now</h3>
+                                                    <div className="h-1 w-20 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full mx-auto mt-2"></div>
+                                                </div>
                                                 {event.eventType === 'paid' && (
-                                                    <div className="p-4 bg-indigo-50 rounded-lg text-center">
-                                                        <h4 className="font-bold text-indigo-800">
+                                                    <div className="p-6 bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 rounded-2xl border-2 border-indigo-200/50 shadow-lg">
+                                                        <h4 className="font-bold text-lg bg-gradient-to-r from-indigo-700 to-purple-700 bg-clip-text text-transparent text-center mb-4">
                                                             {event.isTeamEvent && registrationData.teamSize > 1
-                                                                ? `Payment Required: ${registrationData.teamSize} members × ₹${event.eventFee} = ₹${parseInt(event.eventFee || '0') * registrationData.teamSize}`
+                                                                ? `Payment: ${registrationData.teamSize} members × ₹${event.eventFee} = ₹${parseInt(event.eventFee || '0') * registrationData.teamSize}`
                                                                 : `Payment Required: ₹${event.eventFee}`
                                                             }
                                                         </h4>
-                                                        <div className="mt-2 bg-white p-2 inline-block rounded-lg border">
-                                                            <QRCode value={event.isTeamEvent && registrationData.teamSize > 1
-                                                                ? `upi://pay?pa=${event.upiId}&pn=EventPayment&am=${parseInt(event.eventFee || '0') * registrationData.teamSize}&cu=INR`
-                                                                : upiIntentLink}
-                                                                size={160} />
+                                                        <div className="relative">
+                                                            <div className="absolute -inset-2 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-2xl blur opacity-20"></div>
+                                                            <div className="relative mt-3 bg-white p-4 inline-block rounded-2xl border-2 border-indigo-300 shadow-xl mx-auto block">
+                                                                <QRCode value={event.isTeamEvent && registrationData.teamSize > 1
+                                                                    ? `upi://pay?pa=${event.upiId}&pn=EventPayment&am=${parseInt(event.eventFee || '0') * registrationData.teamSize}&cu=INR`
+                                                                    : upiIntentLink}
+                                                                    size={180}
+                                                                />
+                                                            </div>
                                                         </div>
-                                                        <p className="font-semibold text-gray-800 mt-2">{event.upiId}</p>
-                                                        <p className="text-xs text-gray-500 mt-3">
-                                                            Scan the QR code with your UPI app or copy the UPI ID.
-                                                            After paying, upload the screenshot and enter the Transaction ID below.
+                                                        <div className="mt-4 p-3 bg-white/80 backdrop-blur rounded-xl border border-indigo-200">
+                                                            <p className="font-bold text-indigo-900 text-center">{event.upiId}</p>
+                                                        </div>
+                                                        <p className="text-xs text-indigo-700/80 mt-4 text-center font-medium">
+                                                            📱 Scan the QR or use the UPI ID above<br />
+                                                            📸 Upload payment screenshot below
                                                         </p>
                                                     </div>
                                                 )}
@@ -887,9 +1092,37 @@ const EventDetails: React.FC = () => {
                                                             </select>
                                                         </div>
 
+                                                        {/* Team Name Input */}
+                                                        {registrationData.teamSize > 1 && (
+                                                            <div>
+                                                                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                                                    Team Name *
+                                                                </label>
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder="Enter your team name (e.g., Code Warriors)"
+                                                                    value={registrationData.teamName}
+                                                                    onChange={(e) => setRegistrationData({
+                                                                        ...registrationData,
+                                                                        teamName: e.target.value
+                                                                    })}
+                                                                    className="w-full p-3 border-2 border-indigo-200 rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
+                                                                    required
+                                                                    minLength={3}
+                                                                    maxLength={50}
+                                                                />
+                                                                <p className="text-xs text-gray-500 mt-1">
+                                                                    Must be unique for this event (3-50 characters)
+                                                                </p>
+                                                            </div>
+                                                        )}
+
                                                         {/* Team Lead Information */}
                                                         <div className="border-2 border-primary-200 rounded-lg p-4 bg-primary-50">
-                                                            <h4 className="font-bold text-gray-800 mb-3">Team Lead Information</h4>
+                                                            <h4 className="font-bold text-lg text-indigo-900 mb-4 flex items-center gap-2">
+                                                                <Users className="text-indigo-600" size={20} />
+                                                                Team Lead Information
+                                                            </h4>
                                                             <div className="space-y-3">
                                                                 <Input
                                                                     label="Name"
@@ -936,10 +1169,13 @@ const EventDetails: React.FC = () => {
                                                             </div>
                                                         </div>
 
-                                                        {/* Team Members */}
+                                                        {/* Team Members with Modern Design */}
                                                         {registrationData.teamSize > 1 && registrationData.teamMembers.map((member: any, index: number) => (
-                                                            <div key={index} className="border-2 border-gray-200 rounded-lg p-4 bg-gray-50">
-                                                                <h4 className="font-bold text-gray-800 mb-3">Member {index + 2} Information</h4>
+                                                            <div key={index} className="border-2 border-gray-300/60 rounded-2xl p-5 bg-gradient-to-br from-gray-50 to-slate-50 shadow-md">
+                                                                <h4 className="font-bold text-lg text-gray-800 mb-4 flex items-center gap-2">
+                                                                    <Users className="text-gray-600" size={20} />
+                                                                    Member {index + 2} Information
+                                                                </h4>
                                                                 <div className="space-y-3">
                                                                     <Input
                                                                         label="Name"
@@ -1030,47 +1266,48 @@ const EventDetails: React.FC = () => {
                             </CardBody>
                         </Card>
 
-                        {/* Navigation QR Code Card */}
+                        {/* Modern Navigation QR Card */}
                         {event.venueLocation && (
-                            <Card>
-                                <CardHeader>
-                                    <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                                        <Navigation size={24} className="text-indigo-600" />
-                                        Navigate to Venue
+                            <Card className="shadow-xl border-2 border-purple-200/50 hover:shadow-2xl transition-all duration-300 rounded-2xl overflow-hidden bg-gradient-to-br from-white via-purple-50/20 to-pink-50/20">
+                                <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 border-b-2 border-purple-200/50">
+                                    <h2 className="text-2xl font-bold flex items-center gap-3">
+                                        <div className="p-2 bg-purple-500/10 rounded-xl">
+                                            <Navigation size={24} className="text-purple-600" />
+                                        </div>
+                                        <span className="bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                                            Navigate to Venue
+                                        </span>
                                     </h2>
                                 </CardHeader>
-                                <CardBody className="text-center space-y-4">
-                                    <p className="text-sm text-gray-600">
-                                        Scan this QR code to open navigation directly
+                                <CardBody className="text-center space-y-5 p-6">
+                                    <p className="text-sm text-gray-600 font-medium">
+                                        Scan this QR code to open navigation
                                     </p>
 
-                                    <div
-                                        ref={qrRef}
-                                        className="inline-block bg-white p-4 rounded-lg border-2 border-indigo-300"
-                                    >
-                                        <QRCode
-                                            value={`${window.location.origin}/events/${event.id}/navigate`}
-                                            size={200}
-                                            level="H"
-                                        />
+                                    <div className="relative inline-block">
+                                        <div className="absolute -inset-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl blur opacity-20"></div>
+                                        <div
+                                            ref={qrRef}
+                                            className="relative bg-white p-5 rounded-2xl border-2 border-purple-300 shadow-xl"
+                                        >
+                                            <QRCode
+                                                value={`${window.location.origin}/events/${event.id}/navigate`}
+                                                size={200}
+                                                level="H"
+                                            />
+                                        </div>
                                     </div>
 
-                                    <div className="space-y-2">
-                                        <Button
-                                            size="sm"
-                                            variant="primary"
-                                            fullWidth
-                                            leftIcon={<Navigation size={16} />}
+                                    <div className="space-y-3">
+                                        <button
                                             onClick={() => setIsNavigating(true)}
+                                            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
                                         >
-                                            Open Navigation
-                                        </Button>
+                                            <Navigation size={18} />
+                                            <span>Open Navigation</span>
+                                        </button>
 
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            fullWidth
-                                            leftIcon={<Share2 size={16} />}
+                                        <button
                                             onClick={async () => {
                                                 if (qrRef.current) {
                                                     try {
@@ -1089,9 +1326,11 @@ const EventDetails: React.FC = () => {
                                                     }
                                                 }
                                             }}
+                                            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-white hover:bg-gray-50 border-2 border-purple-300 text-purple-700 font-semibold rounded-xl shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105"
                                         >
-                                            Download QR Code
-                                        </Button>
+                                            <Share2 size={18} />
+                                            <span>Download QR Code</span>
+                                        </button>
                                     </div>
 
                                     <p className="text-xs text-gray-500">

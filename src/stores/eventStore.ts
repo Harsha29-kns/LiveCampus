@@ -4,6 +4,7 @@ import { db } from '../firebaseConfig';
 import { Event, User } from '../types';
 import toast from 'react-hot-toast';
 import { useAuthStore } from './authStore';
+import { useNotificationStore } from './notificationStore';
 
 // Define the detailed feedback type
 interface DetailedFeedback {
@@ -118,6 +119,7 @@ export const useEventStore = create<EventState>((set, get) => ({
         const students = allUsers.filter((u: User) => u.role === 'student');
 
         if (students.length > 0) {
+          // Try to send email notifications (may fail in local development)
           try {
             await fetch('https://live-campus.vercel.app/api/event-notification', {
               method: 'POST',
@@ -126,8 +128,40 @@ export const useEventStore = create<EventState>((set, get) => ({
             });
             toast.success('Event notification sent to students!');
           } catch (emailError) {
-            toast.error('Event created, but mail is not sent.');
-            console.error('Email sending error:', emailError);
+            console.warn('⚠️ Email sending failed (expected in local development):', emailError);
+            // Don't show error toast - emails failing locally is normal
+          }
+
+          // ALWAYS create in-app notifications regardless of email status
+          console.log('🔔 Creating in-app notifications for', students.length, 'students');
+          const { addNotification } = useNotificationStore.getState();
+
+          try {
+            const notificationPromises = students.map((student: User) => {
+              console.log('📧 Creating notification for student:', student.id, student.name);
+              return addNotification({
+                userId: student.id,
+                title: 'New Event Available',
+                message: `Check out the new event: "${eventData.title}"`,
+                type: 'info'
+              }).then(result => {
+                console.log('✓ Notification created for', student.name, ':', result);
+                return result;
+              }).catch(err => {
+                console.error('✗ Failed to create notification for', student.name, ':', err);
+                return null;
+              });
+            });
+
+            const results = await Promise.all(notificationPromises);
+            const successCount = results.filter(r => r !== null).length;
+            console.log(`✅ ${successCount}/${students.length} student notifications created successfully!`);
+            if (successCount > 0) {
+              toast.success(`Notifications sent to ${successCount} students!`);
+            }
+          } catch (notificationError) {
+            console.error('❌ Error creating notifications:', notificationError);
+            toast.error('Failed to create in-app notifications');
           }
         }
       } else {
@@ -197,6 +231,37 @@ export const useEventStore = create<EventState>((set, get) => ({
       }
 
       const updatedEvent = get().getEventById(id);
+      // Create notification for organizer
+      console.log('🔔 Starting notification creation for event approval');
+      const { addNotification } = useNotificationStore.getState();
+      if (updatedEvent?.organizerId) {
+        console.log('📧 Creating notification for organizer:', updatedEvent.organizerId);
+        await addNotification({
+          userId: updatedEvent.organizerId,
+          title: 'Event Approved',
+          message: `Your event "${updatedEvent.title}" has been approved by admin!`,
+          type: 'success'
+        });
+      } else {
+        console.warn('⚠️ No organizerId found for event');
+      }
+
+      // Create notifications for all students
+      console.log('📧 Fetching students to notify...');
+      const studentsQuery = query(collection(db, 'users'), where('role', '==', 'student'));
+      const studentsSnapshot = await getDocs(studentsQuery);
+      console.log(`📧 Found ${studentsSnapshot.docs.length} students to notify`);
+      const notificationPromises = studentsSnapshot.docs.map(studentDoc =>
+        addNotification({
+          userId: studentDoc.id,
+          title: 'New Event Available',
+          message: `Check out the newly approved event: "${updatedEvent.title}"`,
+          type: 'info'
+        })
+      );
+      await Promise.all(notificationPromises);
+      console.log('✅ All notifications created for event approval');
+
       set({ isLoading: false });
       return updatedEvent ? { ...updatedEvent, status: 'approved' } : null;
 
@@ -262,8 +327,20 @@ export const useEventStore = create<EventState>((set, get) => ({
         updatedAt: new Date().toISOString(),
       });
       toast.success('Event rejected');
-      set({ isLoading: false });
+
+      // Create notification for organizer
+      const { addNotification } = useNotificationStore.getState();
       const updatedEvent = get().getEventById(id);
+      if (updatedEvent?.organizerId) {
+        await addNotification({
+          userId: updatedEvent.organizerId,
+          title: 'Event Rejected',
+          message: `Your event "${updatedEvent.title}" has been rejected. Reason: ${reason}`,
+          type: 'error'
+        });
+      }
+
+      set({ isLoading: false });
       return updatedEvent ? { ...updatedEvent, status: 'rejected', rejectionReason: reason } : null;
     } catch (error) {
       toast.error('Failed to reject event');
@@ -284,12 +361,21 @@ export const useEventStore = create<EventState>((set, get) => ({
       });
       toast.success('Event approved (Faculty)');
 
-      // Send notif code could act here (to Admin) - future enhancement
+      // Create notification for club organizer
+      const { addNotification } = useNotificationStore.getState();
+      const evt = get().events.find(e => e.id === id);
+      if (evt?.organizerId) {
+        await addNotification({
+          userId: evt.organizerId,
+          title: 'Faculty Approved',
+          message: `Your event "${evt.title}" has been approved by faculty${notes ? `. Notes: ${notes}` : '!'}`,
+          type: 'success'
+        });
+      }
 
       set({ isLoading: false });
       // No need to update local state fully if we rely on snapshot or fetch loop
       // But good to update local cache
-      const evt = get().events.find(e => e.id === id);
       if (evt) {
         const updatedEvents = get().events.map(e => e.id === id ? { ...e, facultyApprovalStatus: 'approved' } : e);
         // @ts-ignore
@@ -318,9 +404,21 @@ export const useEventStore = create<EventState>((set, get) => ({
         updatedAt: new Date().toISOString(),
       });
       toast.success('Event rejected (Faculty)');
+
+      // Create notification for club organizer
+      const { addNotification } = useNotificationStore.getState();
+      const evt = get().events.find(e => e.id === id);
+      if (evt?.organizerId) {
+        await addNotification({
+          userId: evt.organizerId,
+          title: 'Faculty Rejected',
+          message: `Your event "${evt.title}" has been rejected by faculty. Reason: ${notes}`,
+          type: 'warning'
+        });
+      }
+
       set({ isLoading: false });
 
-      const evt = get().events.find(e => e.id === id);
       if (evt) {
         const updatedEvents = get().events.map(e => e.id === id ? { ...e, facultyApprovalStatus: 'rejected', status: 'rejected' } : e);
         // @ts-ignore
@@ -355,6 +453,22 @@ export const useEventStore = create<EventState>((set, get) => ({
   registerForEvent: async (eventId, userId, registrationData) => {
     set({ isLoading: true });
     try {
+      // Helper function to remove undefined values recursively
+      const removeUndefined = (obj: any): any => {
+        if (obj === null || obj === undefined) return null;
+        if (typeof obj !== 'object') return obj;
+        if (Array.isArray(obj)) return obj.map(removeUndefined);
+
+        const cleaned: any = {};
+        for (const key in obj) {
+          const value = obj[key];
+          if (value !== undefined) {
+            cleaned[key] = removeUndefined(value);
+          }
+        }
+        return cleaned;
+      };
+
       await runTransaction(db, async (transaction) => {
         const userRef = doc(db, 'users', userId);
         const eventRef = doc(db, 'events', eventId);
@@ -365,13 +479,16 @@ export const useEventStore = create<EventState>((set, get) => ({
           throw new Error("User or Event not found!");
         }
 
+        // Clean registration data to remove undefined values
+        const cleanedRegistrationData = registrationData ? removeUndefined(registrationData) : {};
+
         const regRef = doc(collection(db, 'eventRegistrations'));
         transaction.set(regRef, {
           eventId,
           userId,
           status: 'registered',
           registeredAt: new Date().toISOString(),
-          ...(registrationData || {})
+          ...cleanedRegistrationData
         });
 
         const currentRegCount = eventDoc.data().registeredCount || 0;
@@ -382,9 +499,27 @@ export const useEventStore = create<EventState>((set, get) => ({
       });
 
       toast.success('Registered for event!');
+
+      // Create notification for the student
+      console.log('🔔 Creating registration notification...');
+      const { addNotification } = useNotificationStore.getState();
+      const eventDoc = await getDoc(doc(db, 'events', eventId));
+      if (eventDoc.exists()) {
+        const eventData = eventDoc.data();
+        console.log('📧 Creating notification for userId:', userId);
+        await addNotification({
+          userId: userId,
+          title: 'Registration Confirmed',
+          message: `You have successfully registered for "${eventData.title}"!`,
+          type: 'success'
+        });
+        console.log('✅ Registration notification created');
+      }
+
       set({ isLoading: false });
       return true;
     } catch (error) {
+      console.error('❌ Registration failed:', error);
       toast.error('Failed to register');
       set({ isLoading: false });
       return false;

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
 import Maintenance from './pages/Maintenance';
@@ -36,13 +36,24 @@ import VerifyPayments from './pages/VerifyPayments';
 import VerifyCertificate from './pages/VerifyCertificate';
 import FacultyEventApproval from './pages/FacultyEventApproval';
 import NavigationPage from './pages/NavigationPage';
+import Tickets from './pages/Tickets';
+import CreateTicket from './pages/CreateTicket';
+import TicketChat from './pages/TicketChat';
+import ClubTickets from './pages/ClubTickets';
 
 import PublicEvents from './pages/PublicEvents';
+import Features from './pages/Features';
+import Terms from './pages/Terms';
+import Privacy from './pages/Privacy';
 
 // Guards
 import AuthGuard from './guards/AuthGuard';
 import RoleGuard from './guards/RoleGuard';
 import useAutoLogout from './hooks/useAutoLogout';
+
+// Debug: Import test notification
+import './test-notification';
+import './test-create-event';
 
 function App() {
   const { isAuthenticated, user, checkAuth } = useAuthStore();
@@ -97,6 +108,9 @@ function App() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/about" element={<About />} />
+          <Route path="/features" element={<Features />} />
+          <Route path="/terms" element={<Terms />} />
+          <Route path="/privacy" element={<Privacy />} />
           {/* Add the verification route here to make it public */}
           <Route path="/verify-certificate" element={<VerifyCertificate />} />
           <Route path="/verify-certificate/:id" element={<VerifyCertificate />} />
@@ -134,6 +148,13 @@ function App() {
           <Route path="/clubs" element={<Clubs />} />
           <Route path="/clubs/:id" element={<ClubDetails />} />
           <Route path="/profile" element={<Profile />} />
+
+          {/* Ticket System Routes */}
+          <Route path="/tickets" element={<Tickets />} />
+          <Route path="/tickets/new" element={<CreateTicket />} />
+          <Route path="/tickets/:ticketId" element={<TicketChat />} />
+          <Route path="/club/tickets" element={<ClubTickets />} />
+
           <Route
             path="/admin/users"
             element={

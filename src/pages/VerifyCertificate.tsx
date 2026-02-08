@@ -11,6 +11,7 @@ import Button from '../components/ui/Button';
 interface CertificateData {
     id: string;
     userName: string;
+    regNo?: string;
     eventName: string;
     issuedAt: string;
     certificateUrl: string;
@@ -36,8 +37,8 @@ const VerifyCertificate: React.FC = () => {
 
             try {
                 const q = query(
-                    collection(db, 'certificates'), 
-                    where('id', '==', certificateId), 
+                    collection(db, 'certificates'),
+                    where('id', '==', certificateId),
                     limit(1)
                 );
                 const snapshot = await getDocs(q);
@@ -70,7 +71,7 @@ const VerifyCertificate: React.FC = () => {
     if (!certificateId) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[70vh] text-center p-4">
-                 <QrCode size={64} className="text-gray-400 mb-4" />
+                <QrCode size={64} className="text-gray-400 mb-4" />
                 <h1 className="text-2xl font-bold text-gray-800">No Certificate ID Provided</h1>
                 <p className="mt-2 text-gray-600">
                     Please scan a valid certificate QR code to verify its authenticity.
@@ -81,7 +82,7 @@ const VerifyCertificate: React.FC = () => {
             </div>
         );
     }
-    
+
     return (
         <div className="max-w-2xl mx-auto py-12 px-4">
             {certificate ? (
@@ -102,14 +103,23 @@ const VerifyCertificate: React.FC = () => {
                                     <p className="font-semibold text-gray-900">{certificate.userName}</p>
                                 </div>
                             </div>
-                             <div className="flex items-center">
+                            {certificate.regNo && (
+                                <div className="flex items-center">
+                                    <div className="w-5 h-5 mr-3 flex justify-center text-gray-500 font-mono text-xs border border-gray-400 rounded px-0.5">ID</div>
+                                    <div>
+                                        <h3 className="font-medium text-gray-500 text-sm">Reg No.</h3>
+                                        <p className="font-semibold text-gray-900 font-mono">{certificate.regNo}</p>
+                                    </div>
+                                </div>
+                            )}
+                            <div className="flex items-center">
                                 <Award className="w-5 h-5 text-gray-500 mr-3" />
                                 <div>
                                     <h3 className="font-medium text-gray-500 text-sm">Event</h3>
                                     <p className="font-semibold text-gray-900">{certificate.eventName}</p>
                                 </div>
                             </div>
-                             <div className="flex items-center">
+                            <div className="flex items-center">
                                 <Calendar className="w-5 h-5 text-gray-500 mr-3" />
                                 <div>
                                     <h3 className="font-medium text-gray-500 text-sm">Date Issued</h3>
@@ -123,7 +133,7 @@ const VerifyCertificate: React.FC = () => {
                     </CardBody>
                 </Card>
             ) : (
-                 <Card className="border-t-4 border-red-500 shadow-lg animate-fade-in">
+                <Card className="border-t-4 border-red-500 shadow-lg animate-fade-in">
                     <CardHeader>
                         <div className="flex items-center gap-3">
                             <XCircle className="w-8 h-8 text-red-500" />
@@ -135,7 +145,7 @@ const VerifyCertificate: React.FC = () => {
                             We could not find a record of this certificate. It may be invalid, expired, or the link may be incorrect.
                         </p>
                         {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
-                         <Button onClick={() => window.location.href = '/'} className="mt-6">
+                        <Button onClick={() => window.location.href = '/'} className="mt-6">
                             Back to Home
                         </Button>
                     </CardBody>

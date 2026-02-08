@@ -56,12 +56,12 @@ const Dashboard: React.FC = () => {
 
   // --- STATS CALCULATION ---
   const approvedEvents = events.filter(e => e.status === 'approved');
-  const upcomingEvents = approvedEvents.filter(e => new Date(e.endDate) > new Date());
+  const upcomingEvents = approvedEvents.filter(e => e.endDate && new Date(e.endDate) > new Date());
   const pendingEventsCount = events.filter(event => event.status === 'pending').length;
   const myClub = user?.role === 'club' ? clubs.find(c => c.id === user.clubId) : null;
   const myOrganizedEvents = user ? events.filter(e => e.organizerId === (user.role === 'club' ? user.clubId : user.id)) : [];
   const totalRegistrations = myOrganizedEvents.reduce((total, event) => total + (event.registeredCount || 0), 0);
-  const eventsTodayCount = approvedEvents.filter(e => isToday(parseISO(e.startDate))).length;
+  const eventsTodayCount = approvedEvents.filter(e => e.startDate && isToday(parseISO(e.startDate))).length;
 
   const StatCard = ({ title, value, icon, colorClass, onClick }: { title: string, value: string | number, icon: React.ReactNode, colorClass: string, onClick?: () => void }) => (
     <Card className={`text - white shadow - lg hover: shadow - xl transition - shadow ${onClick ? 'cursor-pointer' : ''} `} onClick={onClick}>
@@ -86,7 +86,7 @@ const Dashboard: React.FC = () => {
     <div
       key={event.id}
       className="flex items-center p-3 rounded-lg hover:bg-neutral-50 cursor-pointer"
-      onClick={() => navigate(`/ events / ${event.id} `)}
+      onClick={() => navigate(`/events/${event.id}`)}
     >
       <div className="w-16 text-center mr-4">
         <div className="text-lg font-bold text-primary-600">{format(parseISO(event.startDate), 'd')}</div>
@@ -228,7 +228,7 @@ const Dashboard: React.FC = () => {
             </CardHeader>
             <CardBody className="space-y-3">
               {clubs.sort((a, b) => b.memberCount - a.memberCount).slice(0, 4).map(club => (
-                <div key={club.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-neutral-50 cursor-pointer" onClick={() => navigate(`/ clubs / ${club.id} `)}>
+                <div key={club.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-neutral-50 cursor-pointer" onClick={() => navigate(`/clubs/${club.id}`)}>
                   <div className="flex items-center">
                     {club.logo ? <img src={club.logo} alt={club.name} className="w-8 h-8 rounded-full object-cover mr-3" /> : <div className="w-8 h-8 rounded-full bg-secondary-100 flex items-center justify-center mr-3"><Star size={14} className="text-secondary-600" /></div>}
                     <span className="font-medium text-neutral-700">{club.name}</span>
@@ -252,7 +252,7 @@ const Dashboard: React.FC = () => {
                 <div key={event.id} className="py-3">
                   <div className="flex justify-between items-center">
                     <h3 className="font-semibold text-neutral-800">{event.title}</h3>
-                    <Button variant="outline" size="sm" onClick={() => navigate(`/ events / ${event.id} `)}>Manage/View Participants</Button>
+                    <Button variant="outline" size="sm" onClick={() => navigate(`/events/${event.id}`)}>Manage/View Participants</Button>
                   </div>
                 </div>
               ))

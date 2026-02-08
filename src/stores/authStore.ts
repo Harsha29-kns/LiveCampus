@@ -366,7 +366,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           };
-          await addDoc(collection(db, 'users'), newClubUser);
+          const clubDocRef = await addDoc(collection(db, 'users'), newClubUser);
+          const clubUserId = clubDocRef.id;
 
           // Send credentials email to club
           try {
@@ -378,6 +379,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 name: row.clubName,
                 password: 'defaultpassword'
               }),
+            });
+
+            // Create in-app notification for club
+            await addDoc(collection(db, 'notifications'), {
+              userId: clubUserId,
+              title: 'Welcome to LiveCampus!',
+              message: `Your ${row.clubName} account has been created. Please login and complete your profile. Default password has been sent to your email.`,
+              type: 'info',
+              read: false,
+              createdAt: new Date().toISOString()
             });
           } catch (emailError) {
             console.error('Failed to send club credentials email:', emailError);
@@ -416,6 +427,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 facultyId: row.facultyId,
                 password: 'defaultpassword'
               }),
+            });
+
+            // Create in-app notification for faculty
+            await addDoc(collection(db, 'notifications'), {
+              userId: facultyUserId,
+              title: 'Welcome to LiveCampus!',
+              message: 'Your faculty account has been created. Please login and change your default password. Check your email for login credentials.',
+              type: 'info',
+              read: false,
+              createdAt: new Date().toISOString()
             });
           } catch (emailError) {
             console.error('Failed to send credentials email:', emailError);

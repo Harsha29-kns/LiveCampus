@@ -121,76 +121,124 @@ export default async function handler(req, res) {
                 console.warn(`Skipping attendee without an email: ${user.name || 'Unknown'}`);
                 continue;
             }
-            
-            const certificateRef = db.collection('certificates').doc();
-            const certificateId = certificateRef.id;
 
-            const verificationUrl = `https://live-campus.vercel.app/verify-certificate?id=${certificateId}`;
-            const qrCodeImage = await QRCode.toDataURL(verificationUrl);
-            
-            ctx.drawImage(templateImage, 0, 0);
-            
-            // Convert ratios to final pixel values based on the ACTUAL template dimensions
-            const finalNameX = finalLayoutRatios.name.x * templateImage.width;
-            const finalNameY = finalLayoutRatios.name.y * templateImage.height;
-            const finalNameFontSize = finalLayoutRatios.name.fontSize * templateImage.height;
-
-            const finalRegNoX = finalLayoutRatios.regNo.x * templateImage.width;
-            const finalRegNoY = finalLayoutRatios.regNo.y * templateImage.height;
-            const finalRegNoFontSize = finalLayoutRatios.regNo.fontSize * templateImage.height;
-            
-            const finalQrX = finalLayoutRatios.qrCode.x * templateImage.width;
-            const finalQrY = finalLayoutRatios.qrCode.y * templateImage.height;
-            const finalQrSize = finalLayoutRatios.qrCode.size * templateImage.width;
-
-            // Draw elements using the calculated pixel values
-            ctx.textBaseline = 'middle';
-            ctx.fillStyle = finalLayoutRatios.name.color;
-            ctx.font = `${finalNameFontSize}px "Roboto"`; // Ensure the family name matches the one registered
-            ctx.textAlign = finalLayoutRatios.name.align;
-            ctx.fillText(user.name, finalNameX, finalNameY);
-            
-            if (attendee.regNo) {
-                ctx.fillStyle = finalLayoutRatios.regNo.color;
-                ctx.font = `${finalRegNoFontSize}px "Roboto"`; // Ensure the family name matches
-                ctx.textAlign = finalLayoutRatios.regNo.align;
-                ctx.fillText(attendee.regNo, finalRegNoX, finalRegNoY);
+            // Construct list of recipients (Lead + Members)
+            let recipients = [];
+            if (attendee.teamMembers && Array.isArray(attendee.teamMembers) && attendee.teamMembers.length > 0) {
+                // Add Lead
+                recipients.push({
+                    name: attendee.teamLead?.name || attendee.name || user.name,
+                    regNo: attendee.teamLead?.regNo || attendee.regNo,
+                    type: 'Lead'
+                });
+                // Add Members
+                attendee.teamMembers.forEach(member => {
+                    recipients.push({
+                        name: member.name,
+                        regNo: member.regNo,
+                        type: 'Member'
+                    });
+                });
+            } else {
+                // Individual
+                recipients.push({
+                    name: attendee.name || user.name,
+                    regNo: attendee.regNo,
+                    type: 'Individual'
+                });
             }
 
-            const qrImage = await loadImage(qrCodeImage);
-            ctx.drawImage(qrImage, finalQrX - (finalQrSize / 2), finalQrY - (finalQrSize / 2), finalQrSize, finalQrSize);
+            // Generate certificate for EACH recipient
+            for (const recipient of recipients) {
+                const certificateRef = db.collection('certificates').doc();
+                const certificateId = certificateRef.id;
 
-            const buffer = canvas.toBuffer('image/png');
-            const dataUri = `data:image/png;base64,${buffer.toString('base64')}`;
-            
-            const uploadResult = await cloudinary.uploader.upload(dataUri, {
-                folder: `certificates/${eventId}`,
-                public_id: attendee.userId,
-                overwrite: true
-            });
-            
-            const downloadUrl = uploadResult.secure_url;
+                const verificationUrl = `https://live-campus.vercel.app/verify-certificate?id=${certificateId}`;
+                const qrCodeImage = await QRCode.toDataURL(verificationUrl);
 
-            await certificateRef.set({
-                id: certificateId,
+                ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas before drawing
+                ctx.drawImage(templateImage, 0, 0);
+
+                // Convert ratios to final pixel values based on the ACTUAL template dimensions
+                const finalNameX = finalLayoutRatios.name.x * templateImage.width;
+                const finalNameY = finalLayoutRatios.name.y * templateImage.height;
+                const finalNameFontSize = finalLayoutRatios.name.fontSize * templateImage.height;
+
+                const finalRegNoX = finalLayoutRatios.regNo.x * templateImage.width;
+                const finalRegNoY = finalLayoutRatios.regNo.y * templateImage.height;
+                const finalRegNoFontSize = finalLayoutRatios.regNo.fontSize * templateImage.height;
+
+                const finalQrX = finalLayoutRatios.qrCode.x * templateImage.width;
+                const finalQrY = finalLayoutRatios.qrCode.y * templateImage.height;
+                const finalQrSize = finalLayoutRatios.qrCode.size * templateImage.width;
+
+                // Draw elements using the calculated pixel values
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = finalLayoutRatios.name.color;
+                ctx.font = `${finalNameFontSize}px "Roboto"`; // Ensure the family name matches the one registered
+                ctx.textAlign = finalLayoutRatios.name.align;
+                ctx.fillText(recipient.name, finalNameX, finalNameY);
+
+                if (recipient.regNo) {
+                    ctx.fillStyle = finalLayoutRatios.regNo.color;
+                    ctx.font = `${finalRegNoFontSize}px "Roboto"`; // Ensure the family name matches
+                    ctx.textAlign = finalLayoutRatios.regNo.align;
+                    ctx.fillText(recipient.regNo, finalRegNoX, finalRegNoY);
+                }
+
+                const qrImage = await loadImage(qrCodeImage);
+                ctx.drawImage(qrImage, finalQrX - (finalQrSize / 2), finalQrY - (finalQrSize / 2), finalQrSize, finalQrSize);
+
+                const buffer = canvas.toBuffer('image/png');
+                const dataUri = `data:image/png;base64,${buffer.toString('base64')}`;
+
+                // Use unique public_id for each member
+                const safeName = recipient.name.replace(/[^a-zA-Z0-9]/g, '_');
+                const uniqueId = `${attendee.userId}_${safeName}`;
+
+                const uploadResult = await cloudinary.uploader.upload(dataUri, {
+                    folder: `certificates/${eventId}`,
+                    public_id: uniqueId,
+                    overwrite: true
+                });
+
+                const downloadUrl = uploadResult.secure_url;
+
+                await certificateRef.set({
+                    id: certificateId,
+                    userId: attendee.userId, // Link to Lead's account
+                    userName: recipient.name || '', // Ensure name is not undefined
+                    recipientName: recipient.name || '', // Ensure name is not undefined
+                    regNo: recipient.regNo || '', // Ensure regNo is not undefined
+                    eventId: eventId,
+                    eventName: event.title,
+                    issuedAt: new Date().toISOString(),
+                    certificateUrl: downloadUrl,
+                    isTeamMember: recipient.type === 'Member'
+                });
+
+                await transporter.sendMail({
+                    from: '"LiveCampus" <livecampuss@gmail.com>',
+                    to: user.email, // Send to Lead's email
+                    subject: `Certificate for ${recipient.name} - ${event.title}`,
+                    html: `
+                        <p>Hello ${user.name},</p>
+                        <p>Here is the certificate for <strong>${recipient.name}</strong> for attending "${event.title}".</p>
+                        <p>You can download it by clicking the link below.</p>
+                        <a href="${downloadUrl}" style="display: inline-block; padding: 10px 20px; color: white; background-color: #007bff; text-decoration: none; border-radius: 5px;">Download Certificate</a>
+                    `,
+                });
+            }
+
+            // Create in-app notification for Lead
+            const certCount = recipients.length;
+            await db.collection('notifications').add({
                 userId: attendee.userId,
-                userName: user.name,
-                eventId: eventId,
-                eventName: event.title,
-                issuedAt: new Date().toISOString(),
-                certificateUrl: downloadUrl,
-            });
-
-            await transporter.sendMail({
-                from: '"LiveCampus" <livecampuss@gmail.com>',
-                to: user.email,
-                subject: `Your Certificate for ${event.title}`,
-                html: `
-                    <p>Hello ${user.name},</p>
-                    <p>Congratulations on attending "${event.title}"! Your certificate is ready.</p>
-                    <p>You can download it from your profile on LiveCampus or by clicking the link below.</p>
-                    <a href="${downloadUrl}" style="display: inline-block; padding: 10px 20px; color: white; background-color: #007bff; text-decoration: none; border-radius: 5px;">Download Your Certificate</a>
-                `,
+                title: 'Certificates Ready',
+                message: `Certificates for your team (${certCount} members) for "${event.title}" are now available for download! check your mail`,
+                type: 'success',
+                read: false,
+                createdAt: new Date().toISOString()
             });
         }
 
