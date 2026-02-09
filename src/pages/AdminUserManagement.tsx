@@ -6,8 +6,9 @@ import { useClubStore } from '../stores/clubStore';
 import Button from '../components/ui/Button';
 import { Card, CardBody } from '../components/ui/Card';
 import { db } from '../firebaseConfig';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, collection, getDocs, deleteDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
+import { migrateData } from '../utils/migration';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import CSVUploadSection from '../components/CSVUploadSection';
 
@@ -134,7 +135,6 @@ const AdminUserManagement: React.FC = () => {
         if (!window.confirm("Run data migration? This will update existing events and clubs.")) return;
         setIsLoading(true);
         try {
-            const { migrateData } = await import('../utils/migration');
             const result = await migrateData();
             if (result.success) {
                 toast.success(`Migration completed. Updated ${result.count || 0} documents.`);
@@ -488,9 +488,6 @@ const AdminUserManagement: React.FC = () => {
                                     // Execute reset
                                     setIsLoading(true);
                                     try {
-                                        const { db } = await import('../firebaseConfig');
-                                        const { collection, getDocs, deleteDoc, doc } = await import('firebase/firestore');
-
                                         let deletedEvents = 0;
                                         let deletedUsers = 0;
                                         let deletedClubs = 0;

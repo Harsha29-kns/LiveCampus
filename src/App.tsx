@@ -1,55 +1,64 @@
-import { useEffect } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
-import Maintenance from './pages/Maintenance';
-
-// Layouts
-import PublicLayout from './layouts/PublicLayout';
-import DashboardLayout from './layouts/DashboardLayout';
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react"
 
-// Pages
-import Login from './pages/Login';
-import Register from './pages/Register';
-import Dashboard from './pages/Dashboard';
-import Events from './pages/Events';
-import EventDetails from './pages/EventDetails';
-import CreateEvent from './pages/CreateEvent';
-import Clubs from './pages/Clubs';
-import ClubDetails from './pages/ClubDetails';
-import Profile from './pages/Profile';
-import NotFound from './pages/NotFound';
-import AdminUserManagement from './pages/AdminUserManagement';
-import ForgotPassword from './pages/ForgotPassword';
-import ChangePassword from './pages/ChangePassword';
-import CreateClub from './pages/CreateClub';
-import Contact from './pages/Contact';
-import About from './pages/About';
-import ClubProfile from './pages/ClubProfile';
-import EventMarks from './pages/EventMarks';
-import MarksDashboard from './pages/MarksDashboard';
-import EventAttendance from './pages/EventAttendance';
-import AttendanceDashboard from './pages/AttendanceDashboard';
-import Leaderboard from './pages/Leaderboard';
-import VerifyPayments from './pages/VerifyPayments';
-import VerifyCertificate from './pages/VerifyCertificate';
-import FacultyEventApproval from './pages/FacultyEventApproval';
-import NavigationPage from './pages/NavigationPage';
-import Tickets from './pages/Tickets';
-import CreateTicket from './pages/CreateTicket';
-import TicketChat from './pages/TicketChat';
-import ClubTickets from './pages/ClubTickets';
+// Layouts (keep static for shell)
+import PublicLayout from './layouts/PublicLayout';
+import DashboardLayout from './layouts/DashboardLayout';
 
-import PublicEvents from './pages/PublicEvents';
-import Features from './pages/Features';
-import Terms from './pages/Terms';
-import Privacy from './pages/Privacy';
-
-// Guards
+// Guards (keep static for routing logic)
 import AuthGuard from './guards/AuthGuard';
 import RoleGuard from './guards/RoleGuard';
 import useAutoLogout from './hooks/useAutoLogout';
+
+// Loading fallback component
+const PageLoader = () => (
+  <div className="flex items-center justify-center min-h-screen">
+    <div className="flex flex-col items-center gap-3">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      <p className="text-neutral-600">Loading...</p>
+    </div>
+  </div>
+);
+
+// Lazy-loaded pages for code splitting
+const Maintenance = lazy(() => import('./pages/Maintenance'));
+const Login = lazy(() => import('./pages/Login'));
+const Register = lazy(() => import('./pages/Register'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Events = lazy(() => import('./pages/Events'));
+const EventDetails = lazy(() => import('./pages/EventDetails'));
+const CreateEvent = lazy(() => import('./pages/CreateEvent'));
+const Clubs = lazy(() => import('./pages/Clubs'));
+const ClubDetails = lazy(() => import('./pages/ClubDetails'));
+const Profile = lazy(() => import('./pages/Profile'));
+const NotFound = lazy(() => import('./pages/NotFound'));
+const AdminUserManagement = lazy(() => import('./pages/AdminUserManagement'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const ChangePassword = lazy(() => import('./pages/ChangePassword'));
+const CreateClub = lazy(() => import('./pages/CreateClub'));
+const Contact = lazy(() => import('./pages/Contact'));
+const About = lazy(() => import('./pages/About'));
+const ClubProfile = lazy(() => import('./pages/ClubProfile'));
+const EventMarks = lazy(() => import('./pages/EventMarks'));
+const MarksDashboard = lazy(() => import('./pages/MarksDashboard'));
+const EventAttendance = lazy(() => import('./pages/EventAttendance'));
+const AttendanceDashboard = lazy(() => import('./pages/AttendanceDashboard'));
+const Leaderboard = lazy(() => import('./pages/Leaderboard'));
+const VerifyPayments = lazy(() => import('./pages/VerifyPayments'));
+const VerifyCertificate = lazy(() => import('./pages/VerifyCertificate'));
+const FacultyEventApproval = lazy(() => import('./pages/FacultyEventApproval'));
+const NavigationPage = lazy(() => import('./pages/NavigationPage'));
+const Tickets = lazy(() => import('./pages/Tickets'));
+const CreateTicket = lazy(() => import('./pages/CreateTicket'));
+const TicketChat = lazy(() => import('./pages/TicketChat'));
+const ClubTickets = lazy(() => import('./pages/ClubTickets'));
+const PublicEvents = lazy(() => import('./pages/PublicEvents'));
+const Features = lazy(() => import('./pages/Features'));
+const Terms = lazy(() => import('./pages/Terms'));
+const Privacy = lazy(() => import('./pages/Privacy'));
 
 // Debug: Import test notification
 import './test-notification';
@@ -100,111 +109,113 @@ function App() {
 
   return (
     <>
-      <Routes>
-        {/* Public Routes */}
-        <Route element={<PublicLayout />}>
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/contact" element={<Contact />} />
-          <Route path="/about" element={<About />} />
-          <Route path="/features" element={<Features />} />
-          <Route path="/terms" element={<Terms />} />
-          <Route path="/privacy" element={<Privacy />} />
-          {/* Add the verification route here to make it public */}
-          <Route path="/verify-certificate" element={<VerifyCertificate />} />
-          <Route path="/verify-certificate/:id" element={<VerifyCertificate />} />
-        </Route>
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          {/* Public Routes */}
+          <Route element={<PublicLayout />}>
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/contact" element={<Contact />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/features" element={<Features />} />
+            <Route path="/terms" element={<Terms />} />
+            <Route path="/privacy" element={<Privacy />} />
+            {/* Add the verification route here to make it public */}
+            <Route path="/verify-certificate" element={<VerifyCertificate />} />
+            <Route path="/verify-certificate/:id" element={<VerifyCertificate />} />
+          </Route>
 
-        {/* Protected Routes */}
-        <Route element={
-          <AuthGuard>
-            <DashboardLayout />
-          </AuthGuard>
-        }>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/events" element={<Events />} />
-          <Route path="/events/:id" element={<EventDetails />} />
-          <Route path="/events/:id/navigate" element={<NavigationPage />} />
-          <Route path="/public-events" element={<PublicEvents />} />
-          <Route
-            path="/events/create"
-            element={
-              <RoleGuard allowedRoles={['admin', 'club', 'faculty']}>
-                <CreateEvent />
-              </RoleGuard>
-            }
-          />
-          <Route
-            path="/events/edit/:id"
-            element={
-              <AuthGuard>
-                <RoleGuard allowedRoles={['admin', 'faculty', 'club']}>
+          {/* Protected Routes */}
+          <Route element={
+            <AuthGuard>
+              <DashboardLayout />
+            </AuthGuard>
+          }>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/events" element={<Events />} />
+            <Route path="/events/:id" element={<EventDetails />} />
+            <Route path="/events/:id/navigate" element={<NavigationPage />} />
+            <Route path="/public-events" element={<PublicEvents />} />
+            <Route
+              path="/events/create"
+              element={
+                <RoleGuard allowedRoles={['admin', 'club', 'faculty']}>
                   <CreateEvent />
                 </RoleGuard>
-              </AuthGuard>
-            }
-          />
-          <Route path="/clubs" element={<Clubs />} />
-          <Route path="/clubs/:id" element={<ClubDetails />} />
-          <Route path="/profile" element={<Profile />} />
+              }
+            />
+            <Route
+              path="/events/edit/:id"
+              element={
+                <AuthGuard>
+                  <RoleGuard allowedRoles={['admin', 'faculty', 'club']}>
+                    <CreateEvent />
+                  </RoleGuard>
+                </AuthGuard>
+              }
+            />
+            <Route path="/clubs" element={<Clubs />} />
+            <Route path="/clubs/:id" element={<ClubDetails />} />
+            <Route path="/profile" element={<Profile />} />
 
-          {/* Ticket System Routes */}
-          <Route path="/tickets" element={<Tickets />} />
-          <Route path="/tickets/new" element={<CreateTicket />} />
-          <Route path="/tickets/:ticketId" element={<TicketChat />} />
-          <Route path="/club/tickets" element={<ClubTickets />} />
+            {/* Ticket System Routes */}
+            <Route path="/tickets" element={<Tickets />} />
+            <Route path="/tickets/new" element={<CreateTicket />} />
+            <Route path="/tickets/:ticketId" element={<TicketChat />} />
+            <Route path="/club/tickets" element={<ClubTickets />} />
 
-          <Route
-            path="/admin/users"
-            element={
-              <AuthGuard>
+            <Route
+              path="/admin/users"
+              element={
+                <AuthGuard>
+                  <RoleGuard allowedRoles={['admin']}>
+                    <AdminUserManagement />
+                  </RoleGuard>
+                </AuthGuard>
+              }
+            />
+            <Route path="/change-password" element={<ChangePassword />} />
+            <Route
+              path="/clubs/create"
+              element={
                 <RoleGuard allowedRoles={['admin']}>
-                  <AdminUserManagement />
+                  <CreateClub />
                 </RoleGuard>
-              </AuthGuard>
-            }
-          />
-          <Route path="/change-password" element={<ChangePassword />} />
-          <Route
-            path="/clubs/create"
-            element={
-              <RoleGuard allowedRoles={['admin']}>
-                <CreateClub />
-              </RoleGuard>
-            }
-          />
-          <Route
-            path="/faculty/approvals"
-            element={
-              <RoleGuard allowedRoles={['faculty']}>
-                <FacultyEventApproval />
-              </RoleGuard>
-            }
-          />
-          <Route path="/clubs/:id/edit" element={<CreateClub />} />
-          <Route path="/club-profile" element={<ClubProfile />} />
-          <Route path="/events/:eventId/marks" element={<EventMarks />} />
-          <Route path="/marks" element={<MarksDashboard />} />
-          <Route path="/events/:eventId/attendance" element={<EventAttendance />} />
+              }
+            />
+            <Route
+              path="/faculty/approvals"
+              element={
+                <RoleGuard allowedRoles={['faculty']}>
+                  <FacultyEventApproval />
+                </RoleGuard>
+              }
+            />
+            <Route path="/clubs/:id/edit" element={<CreateClub />} />
+            <Route path="/club-profile" element={<ClubProfile />} />
+            <Route path="/events/:eventId/marks" element={<EventMarks />} />
+            <Route path="/marks" element={<MarksDashboard />} />
+            <Route path="/events/:eventId/attendance" element={<EventAttendance />} />
 
-          {/* --- NEW ROUTE FOR PAYMENT VERIFICATION --- */}
-          <Route
-            path="/events/:eventId/verify-payments"
-            element={
-              <RoleGuard allowedRoles={['admin', 'club', 'faculty']}>
-                <VerifyPayments />
-              </RoleGuard>
-            }
-          />
+            {/* --- NEW ROUTE FOR PAYMENT VERIFICATION --- */}
+            <Route
+              path="/events/:eventId/verify-payments"
+              element={
+                <RoleGuard allowedRoles={['admin', 'club', 'faculty']}>
+                  <VerifyPayments />
+                </RoleGuard>
+              }
+            />
 
-          <Route path="/attendance" element={<AttendanceDashboard />} />
-          <Route path="/leaderboard" element={<Leaderboard />} />
-        </Route>
+            <Route path="/attendance" element={<AttendanceDashboard />} />
+            <Route path="/leaderboard" element={<Leaderboard />} />
+          </Route>
 
-        {/* Not Found */}
-        <Route path="*" element={<NotFound />} />
-      </Routes>
+          {/* Not Found */}
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </Suspense>
       <Analytics />
       <SpeedInsights />
     </>
