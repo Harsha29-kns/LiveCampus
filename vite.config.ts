@@ -11,10 +11,15 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: (id) => {
-          // Vendor chunk: Core React libraries
+          // Vendor chunk: Core React libraries + React-dependent packages
           if (id.includes('node_modules/react') ||
             id.includes('node_modules/react-dom') ||
-            id.includes('node_modules/react-router-dom')) {
+            id.includes('node_modules/react-router-dom') ||
+            id.includes('node_modules/react-hot-toast') ||
+            id.includes('node_modules/html-to-image') ||
+            id.includes('node_modules/qrcode.react') ||
+            id.includes('node_modules/react-qr-code') ||
+            id.includes('node_modules/react-qr-scanner')) {
             return 'vendor-react';
           }
 
