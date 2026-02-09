@@ -12,14 +12,17 @@ export default defineConfig({
       output: {
         manualChunks: (id) => {
           // Vendor chunk: Core React libraries + React-dependent packages
+          // IMPORTANT: Any package that imports React must be in this chunk
           if (id.includes('node_modules/react') ||
             id.includes('node_modules/react-dom') ||
-            id.includes('node_modules/react-router-dom') ||
+            id.includes('node_modules/react-router') ||
             id.includes('node_modules/react-hot-toast') ||
             id.includes('node_modules/html-to-image') ||
             id.includes('node_modules/qrcode.react') ||
-            id.includes('node_modules/react-qr-code') ||
-            id.includes('node_modules/react-qr-scanner')) {
+            id.includes('node_modules/react-qr') ||
+            id.includes('node_modules/@vercel/analytics') ||
+            id.includes('node_modules/@vercel/speed-insights') ||
+            id.includes('node_modules/@babel/runtime')) {
             return 'vendor-react';
           }
 
