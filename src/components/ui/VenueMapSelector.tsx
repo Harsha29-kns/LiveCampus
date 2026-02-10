@@ -5,7 +5,8 @@ import { VenueLocation, Coordinates } from '../../types';
 import { CAMPUS_CONFIG } from '../../config/campusConfig';
 import Button from './Button';
 import Input from './Input';
-import { MapPin, X, Navigation } from 'lucide-react';
+import LocationSearchInput from './LocationSearchInput';
+import { MapPin, X, Navigation, Info } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 
 // Fix for default marker icon
@@ -43,7 +44,8 @@ const VenueMapSelector: React.FC<VenueMapSelectorProps> = ({ initialValue, onSav
     const [venueCoords, setVenueCoords] = useState<Coordinates | null>(
         initialValue?.coordinates || null
     );
-    const [venueName, setVenueName] = useState(initialValue?.name || '');
+    // Use searchValue as the source of truth for venue name to keep inputs in sync
+    const [searchValue, setSearchValue] = useState(initialValue?.name || '');
     const [buildingName, setBuildingName] = useState(initialValue?.buildingName || '');
     const [floorNumber, setFloorNumber] = useState(initialValue?.floorNumber || '');
     const [roomNumber, setRoomNumber] = useState(initialValue?.roomNumber || '');
@@ -51,6 +53,15 @@ const VenueMapSelector: React.FC<VenueMapSelectorProps> = ({ initialValue, onSav
     const [selectedStartingPoints, setSelectedStartingPoints] = useState<string[]>(
         initialValue?.startingPoints.map((sp) => sp.id) || []
     );
+    const [mapKey, setMapKey] = useState(0); // To force map re-render when centering
+
+    const handleLocationSelect = (location: Coordinates, _displayName: string) => {
+        setVenueCoords(location);
+        // searchValue is already updated by LocationSearchInput before calling this
+
+        // Force map to re-render and center on new location
+        setMapKey(prev => prev + 1);
+    };
 
     const handleSave = () => {
         if (!venueCoords || selectedStartingPoints.length === 0) {
@@ -60,7 +71,7 @@ const VenueMapSelector: React.FC<VenueMapSelectorProps> = ({ initialValue, onSav
 
         const venueLocation: VenueLocation = {
             coordinates: venueCoords,
-            name: venueName || 'Event Venue',
+            name: searchValue || 'Event Venue',
             buildingName,
             floorNumber,
             roomNumber,
@@ -107,9 +118,9 @@ const VenueMapSelector: React.FC<VenueMapSelectorProps> = ({ initialValue, onSav
                         <div className="lg:col-span-2">
                             <div className="bg-gray-100 rounded-lg overflow-hidden border-2 border-gray-300" style={{ height: '500px' }}>
                                 <MapContainer
-                                    key={`${mapCenter[0]}-${mapCenter[1]}`}
+                                    key={`map-${mapKey}-${mapCenter[0]}-${mapCenter[1]}`}
                                     center={mapCenter}
-                                    zoom={CAMPUS_CONFIG.defaultZoom}
+                                    zoom={venueCoords ? 16 : CAMPUS_CONFIG.defaultZoom}
                                     style={{ height: '100%', width: '100%' }}
                                     scrollWheelZoom={true}
                                 >
@@ -125,7 +136,7 @@ const VenueMapSelector: React.FC<VenueMapSelectorProps> = ({ initialValue, onSav
                                             <Popup>
                                                 <strong>Venue Location</strong>
                                                 <br />
-                                                {venueName || 'Event Venue'}
+                                                {searchValue || 'Event Venue'}
                                             </Popup>
                                         </Marker>
                                     )}
@@ -165,14 +176,22 @@ const VenueMapSelector: React.FC<VenueMapSelectorProps> = ({ initialValue, onSav
                         {/* Form */}
                         <div className="space-y-4">
                             <div>
-                                <h3 className="font-semibold text-gray-900 mb-3">Venue Details</h3>
+                                <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                    <Info size={16} className="text-indigo-600" />
+                                    Search or Click on Map
+                                </h3>
                                 <div className="space-y-3">
-                                    <Input
-                                        label="Venue Name"
-                                        value={venueName}
-                                        onChange={(e) => setVenueName(e.target.value)}
-                                        placeholder="e.g., Auditorium"
+                                    <LocationSearchInput
+                                        value={searchValue}
+                                        onChange={setSearchValue}
+                                        onLocationSelect={handleLocationSelect}
+                                        label="Search Location"
+                                        placeholder="e.g., Chennai, Auditorium..."
                                     />
+
+                                    <p className="text-xs text-gray-500 bg-blue-50 p-2 rounded border border-blue-200">
+                                        💡<strong>Tip:</strong> Type a location name or click anywhere on the map to set venue coordinates
+                                    </p>
                                     <Input
                                         label="Building Name (Optional)"
                                         value={buildingName}

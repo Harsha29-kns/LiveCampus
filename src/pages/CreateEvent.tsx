@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, MapPin, Users, ImageUp, Tag, Calendar, Clock, Save, DollarSign, Phone, Award, Settings, Info, Navigation } from 'lucide-react';
+import { ArrowLeft, Users, ImageUp, Tag, Calendar, Clock, Save, DollarSign, Phone, Award, Settings, Info, Navigation } from 'lucide-react';
 import { useEventStore } from '../stores/eventStore';
 import { useAuthStore } from '../stores/authStore';
 import { useClubStore } from '../stores/clubStore';
@@ -14,6 +14,7 @@ import { format, parseISO } from 'date-fns';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import CertificateLayoutEditorModal from '../components/ui/CertificateLayoutEditor';
 import VenueMapSelector from '../components/ui/VenueMapSelector';
+import LocationSearchInput from '../components/ui/LocationSearchInput';
 
 const CreateEvent: React.FC = () => {
     const { id } = useParams<{ id?: string }>();
@@ -471,7 +472,31 @@ const CreateEvent: React.FC = () => {
                                     <textarea name="description" rows={5} placeholder="Provide a detailed description of your event..." value={formData.description} onChange={handleChange as any} className={`w-full p-2 border rounded-md shadow-sm ${errors.description ? 'border-red-500' : 'border-gray-300'}`} required />
                                     {errors.description && <p className="mt-1 text-sm text-red-500">{errors.description}</p>}
                                 </div>
-                                <Input label="Location" name="location" leftIcon={<MapPin size={16} />} placeholder="e.g., College Auditorium" value={formData.location} onChange={handleChange} error={errors.location} required />
+
+
+                                <LocationSearchInput
+                                    label="Location"
+                                    placeholder="e.g., College Auditorium or Search City"
+                                    value={formData.location}
+                                    onChange={(value) => setFormData(prev => ({ ...prev, location: value }))}
+                                    onLocationSelect={(coords, name) => {
+                                        setFormData(prev => ({ ...prev, location: name }));
+                                        // Auto-populate venue location with selected coordinates and all starting points
+                                        import('../config/campusConfig').then(({ CAMPUS_CONFIG }) => {
+                                            setVenueLocation({
+                                                coordinates: coords,
+                                                name: name,
+                                                startingPoints: CAMPUS_CONFIG.startingPoints,
+                                                buildingName: '',
+                                                floorNumber: '',
+                                                roomNumber: '',
+                                                instructions: ''
+                                            });
+                                        });
+                                        toast.success('Location coordinates updated!');
+                                    }}
+                                />
+                                {errors.location && <p className="mt-1 text-sm text-red-600">{errors.location}</p>}
 
                                 {/* Venue Navigation Selector */}
                                 <div className="mt-4 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
@@ -660,18 +685,22 @@ const CreateEvent: React.FC = () => {
                 />
 
                 {/* Venue Map Selector Modal */}
-                {isVenueModalOpen && (
-                    <VenueMapSelector
-                        initialValue={venueLocation}
-                        onSave={(venue) => {
-                            setVenueLocation(venue);
-                            setIsVenueModalOpen(false);
-                        }}
-                        onClose={() => setIsVenueModalOpen(false)}
-                    />
-                )}
-            </form>
-        </div>
+                {
+                    isVenueModalOpen && (
+                        <VenueMapSelector
+                            initialValue={venueLocation}
+                            onSave={(venue) => {
+                                setVenueLocation(venue);
+                                // Also update the main location field
+                                setFormData(prev => ({ ...prev, location: venue.name }));
+                                setIsVenueModalOpen(false);
+                            }}
+                            onClose={() => setIsVenueModalOpen(false)}
+                        />
+                    )
+                }
+            </form >
+        </div >
     );
 };
 

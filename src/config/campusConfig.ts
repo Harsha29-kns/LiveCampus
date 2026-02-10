@@ -39,6 +39,8 @@ export const CAMPUS_CONFIG = {
             coordinates: { latitude: 12.9712, longitude: 77.5952 },
         },
     ] as StartingPoint[],
+    // Campus boundary radius in meters (for detecting on-campus vs off-campus users)
+    boundaryRadius: 2000, // 2km from campus center
 };
 
 // OSRM Public API endpoint (free, no API key required)

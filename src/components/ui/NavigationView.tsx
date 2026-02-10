@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
-import { MapContainer, TileLayer, Marker } from 'react-leaflet';
+import React, { useState, useEffect } from 'react';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import { Icon, LatLngExpression } from 'leaflet';
 import { Coordinates, StartingPoint } from '../../types';
+import { CAMPUS_CONFIG } from '../../config/campusConfig';
+import { navigationService } from '../../services/navigationService';
 import Button from './Button';
-import { Navigation, ExternalLink, Info } from 'lucide-react';
+import { Navigation, ExternalLink, Info, MapPin, Loader2 } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
@@ -35,6 +37,51 @@ const NavigationView: React.FC<NavigationViewProps> = ({
     const [selectedStartingPoint, setSelectedStartingPoint] = useState<StartingPoint>(
         startingPoints[0]
     );
+    const [isLoadingLocation, setIsLoadingLocation] = useState(true);
+    const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
+    const [isOffCampus, setIsOffCampus] = useState(false);
+    const [distanceFromCampus, setDistanceFromCampus] = useState<number | null>(null);
+
+    useEffect(() => {
+        const detectLocation = async () => {
+            setIsLoadingLocation(true);
+            try {
+                // Get user's current location
+                const location = await navigationService.getCurrentLocation();
+
+                if (location) {
+                    setUserLocation(location);
+
+                    // Calculate distance from campus center
+                    const dist = navigationService.calculateDistance(
+                        location,
+                        CAMPUS_CONFIG.center
+                    );
+                    setDistanceFromCampus(dist);
+
+                    // Check if user is off-campus (outside boundary radius)
+                    // limit to 2km or configured radius
+                    const threshold = CAMPUS_CONFIG.boundaryRadius || 2000;
+
+                    if (dist > threshold) {
+                        setIsOffCampus(true);
+                        // Create a temporary starting point for user's location
+                        setSelectedStartingPoint({
+                            id: 'current-location',
+                            name: 'Your Current Location',
+                            coordinates: location
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to detect location:', error);
+            } finally {
+                setIsLoadingLocation(false);
+            }
+        };
+
+        detectLocation();
+    }, []);
 
     const mapCenter: LatLngExpression = [destination.latitude, destination.longitude];
 
@@ -60,26 +107,51 @@ const NavigationView: React.FC<NavigationViewProps> = ({
                     </button>
                 </div>
 
-                {/* Starting point selector */}
-                {startingPoints.length > 1 && (
-                    <div className="mt-3">
-                        <label className="text-xs text-indigo-100 block mb-1">Navigate from:</label>
-                        <select
-                            value={selectedStartingPoint.id}
-                            onChange={(e) => {
-                                const point = startingPoints.find((p) => p.id === e.target.value);
-                                if (point) setSelectedStartingPoint(point);
-                            }}
-                            className="w-full p-2 rounded bg-indigo-500 text-white border border-indigo-400"
-                        >
-                            {startingPoints.map((point) => (
-                                <option key={point.id} value={point.id}>
-                                    {point.name}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                )}
+                {/* Navigation Status / Selector */}
+                <div className="mt-4 bg-indigo-700 bg-opacity-50 rounded-lg p-3">
+                    {isLoadingLocation ? (
+                        <div className="flex items-center gap-2 text-sm text-indigo-100">
+                            <Loader2 size={16} className="animate-spin" />
+                            Detecting your location...
+                        </div>
+                    ) : isOffCampus && userLocation ? (
+                        // Off-campus view
+                        <div>
+                            <div className="flex items-start gap-2 mb-1">
+                                <MapPin size={16} className="text-yellow-300 mt-0.5" />
+                                <div>
+                                    <p className="text-sm font-medium text-white">
+                                        Navigating from your location
+                                    </p>
+                                    <p className="text-xs text-indigo-200">
+                                        You are {navigationService.formatDistance(distanceFromCampus || 0)} from campus
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        // On-campus view (Selector)
+                        <div>
+                            <label className="text-xs text-indigo-200 block mb-1">
+                                {userLocation ? 'You are on campus. ' : ''}Navigate from:
+                            </label>
+                            <select
+                                value={selectedStartingPoint.id === 'current-location' ? startingPoints[0].id : selectedStartingPoint.id}
+                                onChange={(e) => {
+                                    const point = startingPoints.find((p) => p.id === e.target.value);
+                                    if (point) setSelectedStartingPoint(point);
+                                }}
+                                className="w-full p-2 rounded bg-indigo-500 text-white border border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                            >
+                                {startingPoints.map((point) => (
+                                    <option key={point.id} value={point.id}>
+                                        {point.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Map */}
@@ -113,10 +185,14 @@ const NavigationView: React.FC<NavigationViewProps> = ({
                                 shadowSize: [41, 41],
                             })
                         }
-                    />
+                    >
+                        <Popup>{selectedStartingPoint.name}</Popup>
+                    </Marker>
 
                     {/* Destination marker */}
-                    <Marker position={[destination.latitude, destination.longitude]} />
+                    <Marker position={[destination.latitude, destination.longitude]}>
+                        <Popup>{destinationName}</Popup>
+                    </Marker>
                 </MapContainer>
             </div>
 
