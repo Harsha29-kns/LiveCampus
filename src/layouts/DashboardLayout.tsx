@@ -51,7 +51,7 @@ const DashboardLayout: React.FC = () => {
 
   const baseMenuItems = [
     { to: '/', icon: <Home size={20} />, label: 'Dashboard', roles: ['admin', 'faculty', 'student', 'club'] },
-    { to: '/public-events', icon: <Globe size={20} />, label: 'Public Events', roles: ['admin', 'faculty', 'student', 'club'] },
+    { to: '/public-events', icon: <Globe size={20} />, label: 'Public Events', roles: ['admin', 'faculty', 'club'] },
     { to: '/events', icon: <Calendar size={20} />, label: 'Events', roles: ['admin', 'faculty', 'student', 'club'] },
     { to: '/tickets', icon: <Ticket size={20} />, label: 'Support', roles: ['student'] },
     { to: '/club/tickets', icon: <Ticket size={20} />, label: 'Tickets', roles: ['club'] },
@@ -208,7 +208,7 @@ const DashboardLayout: React.FC = () => {
       {/* ---- Main Content ---- */}
       <div className="lg:pl-72 flex flex-col flex-1 min-h-screen">
         {/* Header */}
-        <header className="sticky top-0 z-20 flex items-center justify-between h-20 px-6 bg-white/80 backdrop-blur-md border-b border-slate-200">
+        <header className="sticky top-0 z-20 flex items-center justify-between h-16 lg:h-20 px-4 lg:px-6 bg-white/80 backdrop-blur-md border-b border-slate-200">
           <div className="flex items-center gap-4">
             <button
               className="lg:hidden p-2 -ml-2 text-slate-500 hover:text-slate-700 rounded-lg hover:bg-slate-100"
@@ -244,7 +244,7 @@ const DashboardLayout: React.FC = () => {
                 leaveFrom="transform opacity-100 scale-100"
                 leaveTo="transform opacity-0 scale-95"
               >
-                <div className="absolute right-0 mt-2 w-96 bg-white shadow-2xl rounded-2xl overflow-hidden ring-1 ring-black/5 z-50 origin-top-right">
+                <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white shadow-2xl rounded-2xl overflow-hidden ring-1 ring-black/5 z-50 origin-top-right">
                   {/* Header */}
                   <div className="p-4 border-b border-slate-100 bg-gradient-to-r from-indigo-50 to-purple-50">
                     <div className="flex justify-between items-center mb-2">
@@ -284,7 +284,7 @@ const DashboardLayout: React.FC = () => {
                   </div>
 
                   {/* Notification List */}
-                  <div className="max-h-[28rem] overflow-y-auto">
+                  <div className="max-h-[20rem] sm:max-h-[28rem] overflow-y-auto">
                     {notifications.length > 0 ? (
                       notifications.slice(0, 20).map((n) => {
                         const typeColors = {
@@ -373,7 +373,7 @@ const DashboardLayout: React.FC = () => {
           </div>
         </header>
 
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50 p-6">
+        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50 p-4 lg:p-6">
           <div className="max-w-7xl mx-auto">
             <Outlet />
           </div>

@@ -158,8 +158,8 @@ const AdminUserManagement: React.FC = () => {
     }
 
     return (
-        <div className="max-w-6xl mx-auto py-10 space-y-10">
-            <h1 className="text-3xl font-bold text-primary-800 mb-6">Admin User & Club Management</h1>
+        <div className="max-w-6xl mx-auto py-6 lg:py-10 space-y-6 lg:space-y-10">
+            <h1 className="text-2xl lg:text-3xl font-bold text-primary-800 mb-4 lg:mb-6">Admin User & Club Management</h1>
 
             <Card>
                 <CardBody>
@@ -197,16 +197,16 @@ const AdminUserManagement: React.FC = () => {
 
             <Card>
                 <CardBody>
-                    <div className="flex items-start gap-4 mb-4">
-                        <div className="bg-blue-100 p-2 rounded-full text-blue-600">
+                    <div className="flex flex-col sm:flex-row items-start gap-4 mb-4">
+                        <div className="bg-blue-100 p-2 rounded-full text-blue-600 shrink-0">
                             <Info size={24} />
                         </div>
                         <div>
                             <h3 className="font-semibold text-lg text-primary-700">Bulk Import</h3>
-                            <p className="text-neutral-600 mb-2">Upload a CSV file to create clubs and link faculty members automatically.</p>
-                            <div className="bg-neutral-50 p-3 rounded border text-sm text-neutral-700 font-mono">
+                            <p className="text-neutral-600 mb-2 text-sm sm:text-base">Upload a CSV file to create clubs and link faculty members automatically.</p>
+                            <div className="bg-neutral-50 p-3 rounded border text-xs sm:text-sm text-neutral-700 font-mono overflow-x-auto">
                                 <strong>Expected CSV Format:</strong><br />
-                                <span className="text-neutral-500">Club Name, Club Email, Faculty ID, Faculty Name, Faculty Email</span>
+                                <span className="text-neutral-500 whitespace-nowrap">Club Name, Club Email, Faculty ID, Faculty Name, Faculty Email</span>
                             </div>
                         </div>
                     </div>
@@ -221,12 +221,14 @@ const AdminUserManagement: React.FC = () => {
                     {users.filter(u => u.status === 'pending').length === 0 ? (
                         <div className="text-neutral-500">No pending users.</div>
                     ) : (
-                        <ul>
+                        <ul className="space-y-2">
                             {users.filter(u => u.status === 'pending').map(u => (
-                                <li key={u.id} className="flex items-center gap-4 mb-2">
-                                    <span>{u.name} ({u.email}) - {u.role}</span>
-                                    <Button size="sm" onClick={() => handleApprove(u.id, u.email, u.name)}>Approve</Button>
-                                    <Button size="sm" variant="danger" onClick={() => handleReject(u.id, u.email, u.name)}>Reject</Button>
+                                <li key={u.id} className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 p-2 bg-neutral-50 rounded border">
+                                    <span className="flex-1 break-all">{u.name} ({u.email}) - {u.role}</span>
+                                    <div className="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+                                        <Button size="sm" onClick={() => handleApprove(u.id, u.email, u.name)} className="flex-1 sm:flex-none">Approve</Button>
+                                        <Button size="sm" variant="danger" onClick={() => handleReject(u.id, u.email, u.name)} className="flex-1 sm:flex-none">Reject</Button>
+                                    </div>
                                 </li>
                             ))}
                         </ul>
@@ -234,26 +236,26 @@ const AdminUserManagement: React.FC = () => {
                 </CardBody>
             </Card>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
                 <Card>
                     <CardBody>
                         <h2 className="font-semibold text-primary-700 mb-2">Students</h2>
                         <div className="overflow-x-auto">
-                            <table className="min-w-full text-left mb-2">
+                            <table className="min-w-full text-left mb-2 text-sm">
                                 <thead>
                                     <tr>
                                         <th className="px-2 py-1 border-b">Name</th>
                                         <th className="px-2 py-1 border-b">Email</th>
-                                        <th className="px-2 py-1 border-b">Created At</th>
+                                        <th className="px-2 py-1 border-b hidden sm:table-cell">Created At</th>
                                         <th className="px-2 py-1 border-b">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {students.map(user => (
                                         <tr key={user.id}>
-                                            <td className="px-2 py-1 border-b">{user.name}</td>
-                                            <td className="px-2 py-1 border-b">{user.email}</td>
-                                            <td className="px-2 py-1 border-b">{user.createdAt ? new Date(user.createdAt).toLocaleString() : '-'}</td>
+                                            <td className="px-2 py-1 border-b max-w-[100px] truncate" title={user.name}>{user.name}</td>
+                                            <td className="px-2 py-1 border-b max-w-[120px] truncate" title={user.email}>{user.email}</td>
+                                            <td className="px-2 py-1 border-b hidden sm:table-cell">{user.createdAt ? new Date(user.createdAt).toLocaleString() : '-'}</td>
                                             <td className="px-2 py-1 border-b">
                                                 <Button variant="danger" size="sm" onClick={() => { deleteUser(user.id); fetchUsers().then(setUsers); }}>
                                                     Delete
@@ -271,21 +273,21 @@ const AdminUserManagement: React.FC = () => {
                     <CardBody>
                         <h2 className="font-semibold text-primary-700 mb-2">Club Users</h2>
                         <div className="overflow-x-auto">
-                            <table className="min-w-full text-left mb-2">
+                            <table className="min-w-full text-left mb-2 text-sm">
                                 <thead>
                                     <tr>
                                         <th className="px-2 py-1 border-b">Name</th>
                                         <th className="px-2 py-1 border-b">Email</th>
-                                        <th className="px-2 py-1 border-b">Created At</th>
+                                        <th className="px-2 py-1 border-b hidden sm:table-cell">Created At</th>
                                         <th className="px-2 py-1 border-b">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {clubsUsers.map(user => (
                                         <tr key={user.id}>
-                                            <td className="px-2 py-1 border-b">{user.name}</td>
-                                            <td className="px-2 py-1 border-b">{user.email}</td>
-                                            <td className="px-2 py-1 border-b">{user.createdAt ? new Date(user.createdAt).toLocaleString() : '-'}</td>
+                                            <td className="px-2 py-1 border-b max-w-[100px] truncate" title={user.name}>{user.name}</td>
+                                            <td className="px-2 py-1 border-b max-w-[120px] truncate" title={user.email}>{user.email}</td>
+                                            <td className="px-2 py-1 border-b hidden sm:table-cell">{user.createdAt ? new Date(user.createdAt).toLocaleString() : '-'}</td>
                                             <td className="px-2 py-1 border-b">
                                                 <Button variant="danger" size="sm" onClick={() => { deleteUser(user.id); fetchUsers().then(setUsers); }}>
                                                     Delete
@@ -303,21 +305,21 @@ const AdminUserManagement: React.FC = () => {
                     <CardBody>
                         <h2 className="font-semibold text-primary-700 mb-2">Faculty Users</h2>
                         <div className="overflow-x-auto">
-                            <table className="min-w-full text-left mb-2">
+                            <table className="min-w-full text-left mb-2 text-sm">
                                 <thead>
                                     <tr>
                                         <th className="px-2 py-1 border-b">Name</th>
                                         <th className="px-2 py-1 border-b">Email</th>
-                                        <th className="px-2 py-1 border-b">Created At</th>
+                                        <th className="px-2 py-1 border-b hidden sm:table-cell">Created At</th>
                                         <th className="px-2 py-1 border-b">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {facultyUsers.map(user => (
                                         <tr key={user.id}>
-                                            <td className="px-2 py-1 border-b">{user.name}</td>
-                                            <td className="px-2 py-1 border-b">{user.email}</td>
-                                            <td className="px-2 py-1 border-b">{user.createdAt ? new Date(user.createdAt).toLocaleString() : '-'}</td>
+                                            <td className="px-2 py-1 border-b max-w-[100px] truncate" title={user.name}>{user.name}</td>
+                                            <td className="px-2 py-1 border-b max-w-[120px] truncate" title={user.email}>{user.email}</td>
+                                            <td className="px-2 py-1 border-b hidden sm:table-cell">{user.createdAt ? new Date(user.createdAt).toLocaleString() : '-'}</td>
                                             <td className="px-2 py-1 border-b">
                                                 <Button variant="danger" size="sm" onClick={() => { deleteUser(user.id); fetchUsers().then(setUsers); }}>
                                                     Delete
@@ -347,7 +349,7 @@ const AdminUserManagement: React.FC = () => {
                                         size="sm"
                                         onClick={() => setEditingClubId(club.id)}
                                     >
-                                        Edit Image
+                                        Edit
                                     </Button>
                                     <Button
                                         variant="danger"
@@ -370,11 +372,11 @@ const AdminUserManagement: React.FC = () => {
                                         )}
                                     </div>
                                 </div>
-                                <div className="text-center">
-                                    <div className="font-bold text-lg">{club.name}</div>
-                                    <div className="text-neutral-500 text-sm mb-2">{club.description}</div>
+                                <div className="text-center w-full">
+                                    <div className="font-bold text-lg truncate px-2">{club.name}</div>
+                                    <div className="text-neutral-500 text-sm mb-2 line-clamp-2">{club.description || 'No description'}</div>
                                     {(!club.facultyMembers || club.facultyMembers.length === 0) && (
-                                        <div className="flex items-center justify-center gap-1 text-red-500 text-xs font-semibold mt-1 bg-red-50 py-1 px-2 rounded-full border border-red-100">
+                                        <div className="inline-flex items-center justify-center gap-1 text-red-500 text-xs font-semibold mt-1 bg-red-50 py-1 px-2 rounded-full border border-red-100">
                                             <AlertTriangle size={12} />
                                             <span>No Faculty Assigned</span>
                                         </div>
@@ -396,12 +398,13 @@ const AdminUserManagement: React.FC = () => {
                                             onChange={e => setClubImageUrl(e.target.value)}
                                             className="border px-2 py-1 rounded w-full"
                                         />
-                                        <div className="flex gap-2 mt-2">
+                                        <div className="flex gap-2 mt-2 w-full">
                                             <Button
                                                 size="sm"
                                                 variant="primary"
                                                 isLoading={isUploading}
                                                 onClick={() => handleClubImageUpdate(club.id)}
+                                                className="flex-1"
                                             >
                                                 Save
                                             </Button>
@@ -413,6 +416,7 @@ const AdminUserManagement: React.FC = () => {
                                                     setClubImageFile(null);
                                                     setClubImageUrl('');
                                                 }}
+                                                className="flex-1"
                                             >
                                                 Cancel
                                             </Button>
@@ -433,22 +437,22 @@ const AdminUserManagement: React.FC = () => {
 
                     <div className="space-y-4">
                         {/* Data Migration */}
-                        <div className="flex items-center justify-between bg-neutral-50 p-4 rounded-lg border">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-neutral-50 p-4 rounded-lg border gap-4">
                             <div>
                                 <h3 className="font-bold text-neutral-800">Data Migration</h3>
                                 <p className="text-sm text-neutral-600">Update existing database records to support new faculty approval features.</p>
                             </div>
-                            <Button onClick={handleMigration} variant="secondary">Run Migration</Button>
+                            <Button onClick={handleMigration} variant="secondary" className="w-full sm:w-auto">Run Migration</Button>
                         </div>
 
                         {/* Database Reset - DANGER ZONE */}
-                        <div className="flex items-center justify-between bg-red-50 p-4 rounded-lg border-2 border-red-200">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-red-50 p-4 rounded-lg border-2 border-red-200 gap-4">
                             <div className="flex items-start gap-3">
-                                <div className="bg-red-100 p-2 rounded-full text-red-600">
+                                <div className="bg-red-100 p-2 rounded-full text-red-600 shrink-0">
                                     <AlertTriangle size={24} />
                                 </div>
                                 <div>
-                                    <h3 className="font-bold text-red-800 flex items-center gap-2">
+                                    <h3 className="font-bold text-red-800 flex flex-wrap items-center gap-2">
                                         Reset Database
                                         <span className="text-xs bg-red-200 text-red-800 px-2 py-1 rounded">DANGER</span>
                                     </h3>
@@ -536,6 +540,7 @@ const AdminUserManagement: React.FC = () => {
                                 }}
                                 variant="danger"
                                 size="md"
+                                className="w-full sm:w-auto"
                             >
                                 Reset Database
                             </Button>

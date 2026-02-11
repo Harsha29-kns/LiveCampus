@@ -60,6 +60,7 @@ const CreateEvent: React.FC = () => {
     const [isLayoutModalOpen, setIsLayoutModalOpen] = React.useState(false);
     const [isVenueModalOpen, setIsVenueModalOpen] = React.useState(false);
     const [venueLocation, setVenueLocation] = React.useState<VenueLocation | null>(null);
+    const dataLoadedRef = React.useRef(false);
 
     React.useEffect(() => {
         const loadEventData = async () => {
@@ -69,40 +70,46 @@ const CreateEvent: React.FC = () => {
                 if (events.length === 0) {
                     await fetchEvents();
                 }
-                const event = getEventById(id);
 
-                if (event) {
-                    setFormData({
-                        title: event.title || '',
-                        description: event.description || '',
-                        location: event.location || '',
-                        startDate: event.startDate ? format(parseISO(event.startDate), 'yyyy-MM-dd') : '',
-                        startTime: event.startDate ? format(parseISO(event.startDate), 'HH:mm') : '',
-                        endDate: event.endDate ? format(parseISO(event.endDate), 'yyyy-MM-dd') : '',
-                        endTime: event.endDate ? format(parseISO(event.endDate), 'HH:mm') : '',
-                        registrationStartDate: event.registrationStartDate ? format(parseISO(event.registrationStartDate), "yyyy-MM-dd'T'HH:mm") : '',
-                        registrationDeadline: event.registrationDeadline ? format(parseISO(event.registrationDeadline), "yyyy-MM-dd'T'HH:mm") : '',
-                        capacity: event.capacity ? String(event.capacity) : '',
-                        image: event.image || '',
-                        tags: event.tags ? event.tags.join(', ') : '',
-                        eventType: (event.eventType as 'free' | 'paid') || 'free',
-                        eventFee: event.eventFee || '',
-                        upiId: event.upiId || '',
-                        presidentPhone: event.presidentPhone || '',
-                        vicePresidentPhone: event.vicePresidentPhone || '',
-                        certificateTemplateUrl: event.certificateTemplateUrl || '',
-                        certificateLayout: event.certificateLayout || null,
-                        category: event.category || 'other',
-                        customCategory: event.customCategory || '',
-                        resources: event.resources || [],
-                        isTeamEvent: event.isTeamEvent || false,
-                        minTeamSize: event.minTeamSize || 1,
-                        maxTeamSize: event.maxTeamSize || 4,
-                    });
-                    setVenueLocation(event.venueLocation || null);
-                } else {
-                    toast.error("Event not found for editing.");
-                    navigate('/events');
+                // Only populate if not already loaded to prevent overwriting user edits
+                if (!dataLoadedRef.current) {
+                    const event = getEventById(id);
+
+                    if (event) {
+                        setFormData({
+                            title: event.title || '',
+                            description: event.description || '',
+                            location: event.location || '',
+                            startDate: event.startDate ? format(parseISO(event.startDate), 'yyyy-MM-dd') : '',
+                            startTime: event.startDate ? format(parseISO(event.startDate), 'HH:mm') : '',
+                            endDate: event.endDate ? format(parseISO(event.endDate), 'yyyy-MM-dd') : '',
+                            endTime: event.endDate ? format(parseISO(event.endDate), 'HH:mm') : '',
+                            registrationStartDate: event.registrationStartDate ? format(parseISO(event.registrationStartDate), "yyyy-MM-dd'T'HH:mm") : '',
+                            registrationDeadline: event.registrationDeadline ? format(parseISO(event.registrationDeadline), "yyyy-MM-dd'T'HH:mm") : '',
+                            capacity: event.capacity ? String(event.capacity) : '',
+                            image: event.image || '',
+                            tags: event.tags ? event.tags.join(', ') : '',
+                            eventType: (event.eventType as 'free' | 'paid') || 'free',
+                            eventFee: event.eventFee || '',
+                            upiId: event.upiId || '',
+                            presidentPhone: event.presidentPhone || '',
+                            vicePresidentPhone: event.vicePresidentPhone || '',
+                            certificateTemplateUrl: event.certificateTemplateUrl || '',
+                            certificateLayout: event.certificateLayout || null,
+                            category: event.category || 'other',
+                            customCategory: event.customCategory || '',
+                            resources: event.resources || [],
+                            isTeamEvent: event.isTeamEvent || false,
+                            minTeamSize: event.minTeamSize || 1,
+                            maxTeamSize: event.maxTeamSize || 4,
+                        });
+                        setVenueLocation(event.venueLocation || null);
+                        dataLoadedRef.current = true;
+                    } else if (events.length > 0) {
+                        // Only redirect if events are loaded and we still can't find it
+                        toast.error("Event not found for editing.");
+                        navigate('/events');
+                    }
                 }
             }
             setIsLoading(false);

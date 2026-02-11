@@ -26,68 +26,68 @@ import {
 } from 'lucide-react';
 
 const CreateClubProfileForm: React.FC = () => {
-    const { createClubProfileForUser, isLoading } = useClubStore();
-    const navigate = useNavigate();
-    const [formData, setFormData] = useState({
-        name: '',
-        description: '',
-        facultyAdvisor: '',
-        president: '',
-        vicePresident: '',
-        phoneNo: '',
-        logo: '',
-    });
+  const { createClubProfileForUser, isLoading } = useClubStore();
+  const navigate = useNavigate();
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    facultyAdvisor: '',
+    president: '',
+    vicePresident: '',
+    phoneNo: '',
+    logo: '',
+  });
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
-    };
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        const success = await createClubProfileForUser(formData);
-        if (success) {
-            navigate('/'); 
-        }
-    };
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const success = await createClubProfileForUser(formData);
+    if (success) {
+      navigate('/');
+    }
+  };
 
-    return (
-        <motion.div
-            initial={{ opacity: 0, y: 25 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="space-y-8"
-        >
-            <Card>
-                <CardHeader>
-                    <h1 className="text-3xl font-bold text-gray-900">Create Your Club Profile</h1>
-                    <p className="mt-1 text-gray-600">Your account is approved! Please provide the details for your club to get started.</p>
-                </CardHeader>
-                <CardBody>
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                        <Input label="Club Name" name="name" value={formData.name} onChange={handleChange} required />
-                        <Input label="Faculty Advisor" name="facultyAdvisor" value={formData.facultyAdvisor} onChange={handleChange} required />
-                        <Input label="President" name="president" value={formData.president} onChange={handleChange} required />
-                        <Input label="Vice President" name="vicePresident" value={formData.vicePresident} onChange={handleChange} required />
-                        <Input label="Contact Phone" name="phoneNo" value={formData.phoneNo} onChange={handleChange} required />
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                            <textarea
-                                name="description"
-                                value={formData.description}
-                                onChange={handleChange}
-                                rows={4}
-                                className="w-full border rounded-md p-2 border-gray-300"
-                                required
-                            />
-                        </div>
-                        <div className="flex justify-end pt-4">
-                            <Button type="submit" isLoading={isLoading} leftIcon={<Save size={16} />}>Save and Continue</Button>
-                        </div>
-                    </form>
-                </CardBody>
-            </Card>
-        </motion.div>
-    );
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 25 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+      className="space-y-8"
+    >
+      <Card>
+        <CardHeader>
+          <h1 className="text-3xl font-bold text-gray-900">Create Your Club Profile</h1>
+          <p className="mt-1 text-gray-600">Your account is approved! Please provide the details for your club to get started.</p>
+        </CardHeader>
+        <CardBody>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <Input label="Club Name" name="name" value={formData.name} onChange={handleChange} required />
+            <Input label="Faculty Advisor" name="facultyAdvisor" value={formData.facultyAdvisor} onChange={handleChange} required />
+            <Input label="President" name="president" value={formData.president} onChange={handleChange} required />
+            <Input label="Vice President" name="vicePresident" value={formData.vicePresident} onChange={handleChange} required />
+            <Input label="Contact Phone" name="phoneNo" value={formData.phoneNo} onChange={handleChange} required />
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+              <textarea
+                name="description"
+                value={formData.description}
+                onChange={handleChange}
+                rows={4}
+                className="w-full border rounded-md p-2 border-gray-300"
+                required
+              />
+            </div>
+            <div className="flex justify-end pt-4">
+              <Button type="submit" isLoading={isLoading} leftIcon={<Save size={16} />}>Save and Continue</Button>
+            </div>
+          </form>
+        </CardBody>
+      </Card>
+    </motion.div>
+  );
 };
 
 const ClubProfile: React.FC = () => {
@@ -106,13 +106,13 @@ const ClubProfile: React.FC = () => {
   useEffect(() => {
     const loadData = async () => {
       if (user?.role !== 'club') {
-          setIsLoading(false);
-          return;
+        setIsLoading(false);
+        return;
       }
       if (!user.clubId) {
-          setIsLoading(false);
-          setClubData(null); 
-          return;
+        setIsLoading(false);
+        setClubData(null);
+        return;
       }
 
       setIsLoading(true);
@@ -124,7 +124,7 @@ const ClubProfile: React.FC = () => {
           setClubData(data);
           setEditData(data);
         } else {
-          setClubData(null); 
+          setClubData(null);
         }
 
         if (events.length === 0) {

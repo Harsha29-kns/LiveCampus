@@ -18,6 +18,21 @@ import QRCode from 'react-qr-code';
 import { toPng } from 'html-to-image';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import NavigationView from '../components/ui/NavigationView';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { Icon } from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+
+// Fix for default marker icon
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+
+delete (Icon.Default.prototype as any)._getIconUrl;
+Icon.Default.mergeOptions({
+    iconRetinaUrl: markerIcon2x,
+    iconUrl: markerIcon,
+    shadowUrl: markerShadow,
+});
 
 const StarRating = ({ rating, setRating, disabled = false }: { rating: number, setRating: (rating: number) => void, disabled?: boolean }) => (
     <div className="flex space-x-1">
@@ -34,7 +49,7 @@ const StarRating = ({ rating, setRating, disabled = false }: { rating: number, s
 const EventDetails: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const { getEventById, fetchEvents, approveEvent, rejectEvent, facultyApproveEvent, facultyRejectEvent, deleteEvent, registerForEvent, cancelRegistration, submitFeedback } = useEventStore();
+    const { getEventById, fetchEvents, approveEvent, rejectEvent, facultyApproveEvent, facultyRejectEvent, deleteEvent, registerForEvent, cancelRegistration, submitFeedback, events } = useEventStore();
     const { user } = useAuthStore();
     const [event, setEvent] = useState(getEventById(id || ''));
     const [isLoading, setIsLoading] = useState(true);
@@ -77,11 +92,14 @@ const EventDetails: React.FC = () => {
         const loadEvent = async () => {
             setIsLoading(true);
             try {
-                let fetchedEvent = getEventById(id || '');
-                if (!fetchedEvent) {
+                if (events.length === 0) {
                     await fetchEvents();
-                    fetchedEvent = getEventById(id || '');
                 }
+
+                let fetchedEvent = getEventById(id || '');
+                // If not found in store but we just fetched, it might be truly missing. 
+                // However, the original code had a re-fetch logic here which is redundant if we subscribe to events.
+                // We'll keep it simple: get from store.
 
                 if (fetchedEvent) {
                     const canView =
@@ -102,8 +120,10 @@ const EventDetails: React.FC = () => {
                         setHasGivenFeedback(true);
                     }
                 } else {
-                    toast.error('Event not found');
-                    navigate('/events');
+                    if (events.length > 0) {
+                        toast.error('Event not found');
+                        navigate('/events');
+                    }
                 }
             } catch (error) {
                 toast.error("Could not load event details.");
@@ -112,7 +132,7 @@ const EventDetails: React.FC = () => {
             }
         };
         loadEvent();
-    }, [id, getEventById, fetchEvents, navigate, user]);
+    }, [id, getEventById, fetchEvents, navigate, user, events]);
 
     useEffect(() => {
         const checkRegistration = async () => {
@@ -611,6 +631,14 @@ const EventDetails: React.FC = () => {
                                 </button>
 
                                 <button
+                                    onClick={() => navigate(`/events/edit/${event.id}`)}
+                                    className="flex items-center gap-2 px-4 py-2 bg-blue-600/80 hover:bg-blue-600 backdrop-blur-md border border-blue-400/30 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105"
+                                >
+                                    <Settings size={16} />
+                                    <span className="hidden md:inline font-medium">Edit</span>
+                                </button>
+
+                                <button
                                     onClick={handleDelete}
                                     disabled={isActionLoading}
                                     className="flex items-center gap-2 px-4 py-2 bg-red-600/80 hover:bg-red-600 backdrop-blur-md border border-red-400/30 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 disabled:opacity-50"
@@ -802,39 +830,64 @@ const EventDetails: React.FC = () => {
 
                                 {/* Venue Navigation Section */}
                                 {event.venueLocation && (
-                                    <div className="mt-6 bg-indigo-50 p-4 rounded-lg border border-indigo-200">
-                                        <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                                            <MapPin size={18} className="text-indigo-600" />
-                                            Venue Information
-                                        </h3>
-                                        <div className="space-y-2 text-sm text-gray-700 mb-3">
-                                            <p><strong>{event.venueLocation.name}</strong></p>
-                                            {event.venueLocation.buildingName && (
-                                                <p className="text-gray-600">{event.venueLocation.buildingName}</p>
-                                            )}
-                                            {(event.venueLocation.floorNumber || event.venueLocation.roomNumber) && (
-                                                <p className="text-gray-600">
-                                                    {event.venueLocation.floorNumber}
-                                                    {event.venueLocation.floorNumber && event.venueLocation.roomNumber && ', '}
-                                                    {event.venueLocation.roomNumber}
-                                                </p>
-                                            )}
-                                            {event.venueLocation.instructions && (
-                                                <p className="mt-2 text-indigo-700 italic">
-                                                    <Info size={14} className="inline mr-1" />
-                                                    {event.venueLocation.instructions}
-                                                </p>
-                                            )}
+                                    <div className="mt-6 bg-white overflow-hidden rounded-xl border border-gray-200 shadow-sm transition-shadow hover:shadow-md">
+                                        <div className="p-4 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between">
+                                            <h3 className="font-bold text-indigo-900 flex items-center gap-2">
+                                                <MapPin className="text-indigo-600" size={20} />
+                                                Venue Location
+                                            </h3>
                                         </div>
-                                        <Button
-                                            size="sm"
-                                            variant="primary"
-                                            leftIcon={<Navigation size={16} />}
-                                            onClick={() => setIsNavigating(true)}
-                                            fullWidth
-                                        >
-                                            Navigate to Venue
-                                        </Button>
+
+                                        <div className="h-64 w-full relative z-0">
+                                            <MapContainer
+                                                center={[event.venueLocation.coordinates.latitude, event.venueLocation.coordinates.longitude]}
+                                                zoom={16}
+                                                style={{ height: '100%', width: '100%' }}
+                                                scrollWheelZoom={false}
+                                                dragging={true}
+                                                zoomControl={true}
+                                            >
+                                                <TileLayer
+                                                    attribution='&copy; <a href="https://www.esri.com/">Esri</a>'
+                                                    url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                                                />
+                                                <Marker position={[event.venueLocation.coordinates.latitude, event.venueLocation.coordinates.longitude]}>
+                                                    <Popup>
+                                                        <strong>{event.venueLocation.name}</strong>
+                                                    </Popup>
+                                                </Marker>
+                                            </MapContainer>
+                                        </div>
+
+                                        <div className="p-4 space-y-3">
+                                            <div>
+                                                <p className="font-bold text-gray-900 text-lg">{event.venueLocation.name}</p>
+                                                <p className="text-gray-600">
+                                                    {[
+                                                        event.venueLocation.buildingName,
+                                                        event.venueLocation.floorNumber,
+                                                        event.venueLocation.roomNumber
+                                                    ].filter(Boolean).join(', ')}
+                                                </p>
+                                            </div>
+
+                                            {event.venueLocation.instructions && (
+                                                <div className="text-sm bg-indigo-50 text-indigo-800 p-3 rounded-lg border border-indigo-100 flex gap-2 items-start">
+                                                    <Info size={16} className="flex-shrink-0 mt-0.5" />
+                                                    <span>{event.venueLocation.instructions}</span>
+                                                </div>
+                                            )}
+
+                                            <Button
+                                                fullWidth
+                                                variant="outline"
+                                                onClick={() => setIsNavigating(true)}
+                                                leftIcon={<Navigation size={18} />}
+                                                className="mt-2"
+                                            >
+                                                Navigate to Venue
+                                            </Button>
+                                        </div>
                                     </div>
                                 )}
 
@@ -842,178 +895,135 @@ const EventDetails: React.FC = () => {
                             </CardBody>
                         </Card>
 
-                        {/* Organizer Card with Modern Design */}
-                        {club && (
-                            <Card className="shadow-xl border-2 border-indigo-200/50 hover:shadow-2xl transition-all duration-300 rounded-2xl overflow-hidden">
-                                <CardHeader className="bg-gradient-to-r from-indigo-50 to-blue-50 border-b-2 border-indigo-200/50">
-                                    <h2 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">
-                                        Organizer Information
-                                    </h2>
-                                </CardHeader>
-                                <CardBody className="text-gray-700 space-y-3">
-                                    <div><strong className="block text-gray-900">Club Name</strong> {club.name}</div>
-                                    <div><strong className="block text-gray-900">Faculty Advisor</strong> {club.facultyAdvisor}</div>
-                                    {event.presidentPhone && <div><strong className="block text-gray-900">President Contact</strong> <a href={`tel:${event.presidentPhone}`} className="text-indigo-600 hover:underline">{event.presidentPhone}</a></div>}
-                                    {event.vicePresidentPhone && <div><strong className="block text-gray-900">Vice-President Contact</strong> <a href={`tel:${event.vicePresidentPhone}`} className="text-indigo-600 hover:underline">{event.vicePresidentPhone}</a></div>}
-                                </CardBody>
-                            </Card>
-                        )}
-
-                        {/* Feedback Card with Modern Design */}
-                        {isCompleted && attended && (
-                            <Card className="shadow-xl border-2 border-green-200/50 hover:shadow-2xl transition-all duration-300 rounded-2xl overflow-hidden">
-                                <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 border-b-2 border-green-200/50">
-                                    <h2 className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-                                        Event Feedback
-                                    </h2>
-                                </CardHeader>
-                                <CardBody className="p-6">
-                                    {hasGivenFeedback ? (
-                                        <div className="bg-green-50 text-green-800 p-4 rounded-lg flex items-center gap-3">
-                                            <CheckCircle />
-                                            <div>
-                                                <p className="font-bold">Thank you!</p>
-                                                <p>Your feedback has been submitted.</p>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <form onSubmit={handleFeedbackSubmit} className="space-y-4">
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">Overall Experience</label>
-                                                <StarRating rating={feedback.overallExperience} setRating={(r) => setFeedback({ ...feedback, overallExperience: r })} />
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">Event Organization</label>
-                                                <StarRating rating={feedback.eventOrganization} setRating={(r) => setFeedback({ ...feedback, eventOrganization: r })} />
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">Activities Enjoyment</label>
-                                                <StarRating rating={feedback.activitiesEnjoyment} setRating={(r) => setFeedback({ ...feedback, activitiesEnjoyment: r })} />
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">Likelihood to Recommend</label>
-                                                <StarRating rating={feedback.recommendationLikelihood} setRating={(r) => setFeedback({ ...feedback, recommendationLikelihood: r })} />
-                                            </div>
-                                            <Input
-                                                label="Comments (Optional)"
-                                                value={feedback.comment}
-                                                onChange={(e) => setFeedback({ ...feedback, comment: e.target.value })}
-                                                placeholder="Tell us what you thought..."
-                                                fullWidth
-                                            />
-                                            <Button type="submit" isLoading={isActionLoading}>Submit Feedback</Button>
-                                        </form>
-                                    )}
-                                </CardBody>
-                            </Card>
-                        )}
-                    </main>
-
-                    {/* Premium Sidebar */}
-                    <aside className="lg:col-span-1 lg:sticky lg:top-8 space-y-6">
-                        <Card className="shadow-2xl border-2 border-indigo-200/50 hover:shadow-indigo-200/50 transition-all duration-300 rounded-2xl overflow-hidden bg-gradient-to-br from-white via-indigo-50/20 to-purple-50/20">
-                            <CardBody className="space-y-6 p-6">
-                                <div className="flex items-start gap-4">
-                                    <Calendar className="w-5 h-5 text-indigo-600 mt-1 flex-shrink-0" />
-                                    <p className="text-gray-700"><strong className="block text-gray-900">Event Date & Time</strong>{formattedDate}<br />{formattedTime}</p>
-                                </div>
-                                <div className="flex items-start gap-4"><MapPin className="w-5 h-5 text-indigo-600 mt-1 flex-shrink-0" /><p className="text-gray-700"><strong className="block text-gray-900">Location</strong>{event.location}</p></div>
-                                <div className="flex items-start gap-4"><Users className="w-5 h-5 text-indigo-600 mt-1 flex-shrink-0" /><p className="text-gray-700"><strong className="block text-gray-900">Capacity</strong>{event.registeredCount} / {event.capacity || 'Unlimited'}</p></div>
-
-                                {event.registrationStartDate && (
-                                    <div className="flex items-start gap-4 pt-4 border-t">
-                                        <ClockIcon className="w-5 h-5 text-indigo-600 mt-1 flex-shrink-0" />
-                                        <p className="text-gray-700"><strong className="block text-gray-900">Registration Window</strong>
-                                            {format(parseISO(event.registrationStartDate), 'MMM d, h:mm a')}
-                                            {event.registrationDeadline && ` - ${format(parseISO(event.registrationDeadline), 'MMM d, h:mm a')}`}
-                                        </p>
-                                    </div>
-                                )}
-
-                                {canRegister && event.registrationDeadline && (
-                                    <div className="text-center text-xs text-gray-500 pt-2">
-                                        Note: Registration closes in {formatDistanceToNow(parseISO(event.registrationDeadline))}.
-                                    </div>
-                                )}
-
-                                <hr className="my-2" />
-
-                                {isApproved && !isCompleted && !isCancelled ? (
-                                    isRegistered ? (
-                                        <>
-                                            {paymentStatus === 'verified' && (
-                                                <div className="text-center space-y-5 animate-fade-in">
-                                                    <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300/50 text-green-800 rounded-2xl font-bold shadow-lg">
-                                                        <CheckCircle className="inline-block w-6 h-6 mr-2 text-green-600" />
-                                                        Payment Verified!
+                        {/* Registration Section - Moved to Main Content */}
+                        {isApproved && !isCompleted && !isCancelled ? (
+                            isRegistered ? (
+                                <Card className="shadow-xl border-2 border-green-200/50 hover:shadow-2xl transition-all duration-300 rounded-2xl overflow-hidden mt-8">
+                                    <CardBody className="p-6">
+                                        {paymentStatus === 'verified' && (
+                                            <div className="text-center space-y-6 animate-fade-in">
+                                                <div className="flex flex-col items-center justify-center space-y-2">
+                                                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-2">
+                                                        <CheckCircle className="w-10 h-10 text-green-600" />
                                                     </div>
-                                                    <div className="flex flex-col items-center pt-2">
-                                                        <p className="mb-4 text-sm font-medium text-gray-600">Show this QR at check-in:</p>
+                                                    <h3 className="text-2xl font-bold text-gray-900">You're Registered!</h3>
+                                                    <p className="text-gray-500">We can't wait to see you there.</p>
+                                                </div>
+
+                                                <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-gray-600 font-medium">Status</span>
+                                                        <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-semibold">Confirmed</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-gray-600 font-medium">Payment</span>
+                                                        <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-semibold">Verified</span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="bg-gray-50 rounded-xl p-4">
+                                                    <p className="text-gray-600 text-sm">
+                                                        Attendance marking will be available on the event day.
+                                                    </p>
+                                                </div>
+
+                                                <div className="border-t pt-6">
+                                                    <h4 className="font-semibold text-gray-900 mb-4">Your Ticket QR Code</h4>
+                                                    <div className="flex flex-col items-center">
                                                         <div className="relative">
-                                                            <div className="absolute -inset-2 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-2xl blur opacity-20"></div>
-                                                            <div ref={qrRef} className="relative bg-white p-4 rounded-2xl border-2 border-indigo-200 shadow-xl">
-                                                                <QRCode value={JSON.stringify({
-                                                                    eventId: event.id,
-                                                                    userId: user?.id,
-                                                                    registrationId: registrationData.id, // Include registration ID for team lookup
-                                                                    isTeamLead: event.isTeamEvent && registrationData.teamSize > 1 // Flag for team lead
-                                                                })} size={200} level="H" />
-                                                            </div>
-                                                        </div>
-                                                        <button
-                                                            onClick={handleDownloadQR}
-                                                            className="mt-4 px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
-                                                        >
-                                                            Download QR Code
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            )}
-                                            {paymentStatus === 'pending' && (
-                                                <div className="p-5 bg-gradient-to-r from-yellow-50 to-amber-50 border-2 border-yellow-300/50 text-yellow-900 rounded-2xl text-center shadow-lg animate-fade-in">
-                                                    <p className="font-semibold">Your payment is under verification.</p>
-                                                    <p className="text-sm mt-1">You will get an email from the club once it's approved. After that, you can download your QR code here.</p>
-                                                </div>
-                                            )}
-                                            {paymentStatus === 'rejected' && (
-                                                <div className="p-5 bg-gradient-to-r from-red-50 to-rose-50 border-2 border-red-300/50 text-red-900 rounded-2xl text-center shadow-lg animate-fade-in">
-                                                    <p className="font-bold text-lg">Payment Rejected</p>
-                                                    <p className="text-sm mt-2 text-red-700">Your payment was rejected by the organizer. Please contact them for more details.</p>
-                                                </div>
-                                            )}
-                                            {event.eventType === 'free' && (
-                                                <div className="text-center space-y-5 animate-fade-in">
-                                                    <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300/50 text-green-800 rounded-2xl font-bold shadow-lg">
-                                                        <PartyPopper className="inline-block w-6 h-6 mr-2 text-green-600" />
-                                                        You're Registered!
-                                                    </div>
-                                                    <div className="flex flex-col items-center pt-2">
-                                                        <p className="mb-4 text-sm font-medium text-gray-600">Show this QR at check-in:</p>
-                                                        <div className="relative">
-                                                            <div className="absolute -inset-2 bg-gradient-to-r from-green-500 to-emerald-500 rounded-2xl blur opacity-20"></div>
-                                                            <div ref={qrRef} className="relative bg-white p-4 rounded-2xl border-2 border-green-200 shadow-xl">
+                                                            <div className="absolute -inset-2 bg-gradient-to-r from-gray-200 to-gray-300 rounded-2xl blur opacity-20"></div>
+                                                            <div ref={qrRef} className="relative bg-white p-4 rounded-2xl border-2 border-gray-200 shadow-sm">
                                                                 <QRCode value={JSON.stringify({
                                                                     eventId: event.id,
                                                                     userId: user?.id,
                                                                     registrationId: registrationData.id,
                                                                     isTeamLead: event.isTeamEvent && registrationData.teamSize > 1
-                                                                })} size={200} level="H" />
+                                                                })} size={180} level="H" />
                                                             </div>
                                                         </div>
                                                         <button
                                                             onClick={handleDownloadQR}
-                                                            className="mt-4 px-6 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
+                                                            className="mt-6 flex items-center gap-2 px-6 py-2.5 bg-gray-900 hover:bg-gray-800 text-white font-medium rounded-xl transition-all duration-300 transform hover:scale-105"
                                                         >
-                                                            Download QR Code
+                                                            <Download size={18} />
+                                                            Download Ticket
                                                         </button>
                                                     </div>
                                                 </div>
-                                            )}
-                                            {paymentStatus !== 'rejected' && (
-                                                <Button variant="outline" fullWidth onClick={handleCancelRegistration} isLoading={isActionLoading}>Cancel Registration</Button>
-                                            )}
-                                        </>
-                                    ) : !isRegistrationOpen && event.registrationStartDate ? (
+                                            </div>
+                                        )}
+                                        {paymentStatus === 'pending' && (
+                                            <div className="p-5 bg-gradient-to-r from-yellow-50 to-amber-50 border-2 border-yellow-300/50 text-yellow-900 rounded-2xl text-center shadow-lg animate-fade-in">
+                                                <p className="font-semibold">Your payment is under verification.</p>
+                                                <p className="text-sm mt-1">You will get an email from the club once it's approved. After that, you can download your QR code here.</p>
+                                            </div>
+                                        )}
+                                        {paymentStatus === 'rejected' && (
+                                            <div className="p-5 bg-gradient-to-r from-red-50 to-rose-50 border-2 border-red-300/50 text-red-900 rounded-2xl text-center shadow-lg animate-fade-in">
+                                                <p className="font-bold text-lg">Payment Rejected</p>
+                                                <p className="text-sm mt-2 text-red-700">Your payment was rejected by the organizer. Please contact them for more details.</p>
+                                            </div>
+                                        )}
+                                        {event.eventType === 'free' && (
+                                            <div className="text-center space-y-6 animate-fade-in">
+                                                <div className="flex flex-col items-center justify-center space-y-2">
+                                                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-2">
+                                                        <PartyPopper className="w-10 h-10 text-green-600" />
+                                                    </div>
+                                                    <h3 className="text-2xl font-bold text-gray-900">You're Registered!</h3>
+                                                    <p className="text-gray-500">We can't wait to see you there.</p>
+                                                </div>
+
+                                                <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-gray-600 font-medium">Status</span>
+                                                        <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-semibold">Confirmed</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-gray-600 font-medium">Payment</span>
+                                                        <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-semibold">No Payment Required</span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="bg-gray-50 rounded-xl p-4">
+                                                    <p className="text-gray-600 text-sm">
+                                                        Attendance marking will be available on the event day.
+                                                    </p>
+                                                </div>
+
+                                                <div className="border-t pt-6">
+                                                    <h4 className="font-semibold text-gray-900 mb-4">Your Ticket QR Code</h4>
+                                                    <div className="flex flex-col items-center">
+                                                        <div className="relative">
+                                                            <div className="absolute -inset-2 bg-gradient-to-r from-green-200 to-green-300 rounded-2xl blur opacity-20"></div>
+                                                            <div ref={qrRef} className="relative bg-white p-4 rounded-2xl border-2 border-gray-200 shadow-sm">
+                                                                <QRCode value={JSON.stringify({
+                                                                    eventId: event.id,
+                                                                    userId: user?.id,
+                                                                    registrationId: registrationData.id,
+                                                                    isTeamLead: event.isTeamEvent && registrationData.teamSize > 1
+                                                                })} size={180} level="H" />
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            onClick={handleDownloadQR}
+                                                            className="mt-6 flex items-center gap-2 px-6 py-2.5 bg-gray-900 hover:bg-gray-800 text-white font-medium rounded-xl transition-all duration-300 transform hover:scale-105"
+                                                        >
+                                                            <Download size={18} />
+                                                            Download Ticket
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {paymentStatus !== 'rejected' && (
+                                            <Button variant="outline" fullWidth onClick={handleCancelRegistration} isLoading={isActionLoading}>Cancel Registration</Button>
+                                        )}
+                                    </CardBody>
+                                </Card>
+                            ) : !isRegistrationOpen && event.registrationStartDate ? (
+                                <Card className="shadow-xl border-2 border-blue-200/50 rounded-2xl overflow-hidden mt-8">
+                                    <CardBody className="p-6">
                                         <div className="p-4 bg-blue-50 text-blue-800 rounded-lg text-center">
                                             <div className="flex justify-center items-center gap-2 font-bold">
                                                 <ClockIcon size={18} />
@@ -1023,7 +1033,11 @@ const EventDetails: React.FC = () => {
                                                 Registrations will open on {format(parseISO(event.registrationStartDate), 'MMM d, yyyy \'at\' h:mm a')}.
                                             </p>
                                         </div>
-                                    ) : !canRegister ? (
+                                    </CardBody>
+                                </Card>
+                            ) : !canRegister ? (
+                                <Card className="shadow-xl border-2 border-red-200/50 rounded-2xl overflow-hidden mt-8">
+                                    <CardBody className="p-6">
                                         <div className="p-4 bg-red-50 text-red-800 rounded-lg text-center">
                                             <div className="flex justify-center items-center gap-2 font-bold">
                                                 <Lock size={18} />
@@ -1035,13 +1049,18 @@ const EventDetails: React.FC = () => {
                                                 <p className="text-sm mt-1">This event has reached its maximum capacity.</p>
                                             )}
                                         </div>
-                                    ) : (
-                                        user?.role === 'student' ? (
+                                    </CardBody>
+                                </Card>
+                            ) : (
+                                <Card className="shadow-xl border-2 border-indigo-200/50 hover:shadow-2xl transition-all duration-300 rounded-2xl overflow-hidden mt-8">
+                                    <CardHeader className="bg-gradient-to-r from-indigo-50 to-purple-50 border-b-2 border-indigo-200/50">
+                                        <h2 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                                            Register for Event
+                                        </h2>
+                                    </CardHeader>
+                                    <CardBody className="p-6">
+                                        {user?.role === 'student' ? (
                                             <form onSubmit={handleStudentRegister} className="space-y-6">
-                                                <div className="text-center">
-                                                    <h3 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">Register Now</h3>
-                                                    <div className="h-1 w-20 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full mx-auto mt-2"></div>
-                                                </div>
                                                 {event.eventType === 'paid' && (
                                                     <div className="p-6 bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 rounded-2xl border-2 border-indigo-200/50 shadow-lg">
                                                         <h4 className="font-bold text-lg bg-gradient-to-r from-indigo-700 to-purple-700 bg-clip-text text-transparent text-center mb-4">
@@ -1243,9 +1262,109 @@ const EventDetails: React.FC = () => {
                                                 <h3 className="font-bold mb-1">Registration is Open</h3>
                                                 <p className="text-sm">Log in as a student to register.</p>
                                             </div>
-                                        )
-                                    )
-                                ) : null}
+                                        )}
+                                    </CardBody>
+                                </Card>
+                            )
+                        ) : null}
+
+
+                        {club && (
+                            <Card className="shadow-xl border-2 border-indigo-200/50 hover:shadow-2xl transition-all duration-300 rounded-2xl overflow-hidden">
+                                <CardHeader className="bg-gradient-to-r from-indigo-50 to-blue-50 border-b-2 border-indigo-200/50">
+                                    <h2 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">
+                                        Organizer Information
+                                    </h2>
+                                </CardHeader>
+                                <CardBody className="text-gray-700 space-y-3">
+                                    <div><strong className="block text-gray-900">Club Name</strong> {club.name}</div>
+                                    <div><strong className="block text-gray-900">Faculty Advisor</strong> {club.facultyAdvisor}</div>
+                                    {event.presidentPhone && <div><strong className="block text-gray-900">President Contact</strong> <a href={`tel:${event.presidentPhone}`} className="text-indigo-600 hover:underline">{event.presidentPhone}</a></div>}
+                                    {event.vicePresidentPhone && <div><strong className="block text-gray-900">Vice-President Contact</strong> <a href={`tel:${event.vicePresidentPhone}`} className="text-indigo-600 hover:underline">{event.vicePresidentPhone}</a></div>}
+                                </CardBody>
+                            </Card>
+                        )}
+
+                        {/* Feedback Card with Modern Design */}
+                        {isCompleted && attended && (
+                            <Card className="shadow-xl border-2 border-green-200/50 hover:shadow-2xl transition-all duration-300 rounded-2xl overflow-hidden">
+                                <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 border-b-2 border-green-200/50">
+                                    <h2 className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                                        Event Feedback
+                                    </h2>
+                                </CardHeader>
+                                <CardBody className="p-6">
+                                    {hasGivenFeedback ? (
+                                        <div className="bg-green-50 text-green-800 p-4 rounded-lg flex items-center gap-3">
+                                            <CheckCircle />
+                                            <div>
+                                                <p className="font-bold">Thank you!</p>
+                                                <p>Your feedback has been submitted.</p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <form onSubmit={handleFeedbackSubmit} className="space-y-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Overall Experience</label>
+                                                <StarRating rating={feedback.overallExperience} setRating={(r) => setFeedback({ ...feedback, overallExperience: r })} />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Event Organization</label>
+                                                <StarRating rating={feedback.eventOrganization} setRating={(r) => setFeedback({ ...feedback, eventOrganization: r })} />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Activities Enjoyment</label>
+                                                <StarRating rating={feedback.activitiesEnjoyment} setRating={(r) => setFeedback({ ...feedback, activitiesEnjoyment: r })} />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">Likelihood to Recommend</label>
+                                                <StarRating rating={feedback.recommendationLikelihood} setRating={(r) => setFeedback({ ...feedback, recommendationLikelihood: r })} />
+                                            </div>
+                                            <Input
+                                                label="Comments (Optional)"
+                                                value={feedback.comment}
+                                                onChange={(e) => setFeedback({ ...feedback, comment: e.target.value })}
+                                                placeholder="Tell us what you thought..."
+                                                fullWidth
+                                            />
+                                            <Button type="submit" isLoading={isActionLoading}>Submit Feedback</Button>
+                                        </form>
+                                    )}
+                                </CardBody>
+                            </Card>
+                        )}
+                    </main>
+
+                    {/* Premium Sidebar */}
+                    <aside className="lg:col-span-1 lg:sticky lg:top-8 space-y-6">
+                        <Card className="shadow-2xl border-2 border-indigo-200/50 hover:shadow-indigo-200/50 transition-all duration-300 rounded-2xl overflow-hidden bg-gradient-to-br from-white via-indigo-50/20 to-purple-50/20">
+                            <CardBody className="space-y-6 p-6">
+                                <div className="flex items-start gap-4">
+                                    <Calendar className="w-5 h-5 text-indigo-600 mt-1 flex-shrink-0" />
+                                    <p className="text-gray-700"><strong className="block text-gray-900">Event Date & Time</strong>{formattedDate}<br />{formattedTime}</p>
+                                </div>
+                                <div className="flex items-start gap-4"><MapPin className="w-5 h-5 text-indigo-600 mt-1 flex-shrink-0" /><p className="text-gray-700"><strong className="block text-gray-900">Location</strong>{event.location}</p></div>
+                                <div className="flex items-start gap-4"><Users className="w-5 h-5 text-indigo-600 mt-1 flex-shrink-0" /><p className="text-gray-700"><strong className="block text-gray-900">Capacity</strong>{event.registeredCount} / {event.capacity || 'Unlimited'}</p></div>
+
+                                {event.registrationStartDate && (
+                                    <div className="flex items-start gap-4 pt-4 border-t">
+                                        <ClockIcon className="w-5 h-5 text-indigo-600 mt-1 flex-shrink-0" />
+                                        <p className="text-gray-700"><strong className="block text-gray-900">Registration Window</strong>
+                                            {format(parseISO(event.registrationStartDate), 'MMM d, h:mm a')}
+                                            {event.registrationDeadline && ` - ${format(parseISO(event.registrationDeadline), 'MMM d, h:mm a')}`}
+                                        </p>
+                                    </div>
+                                )}
+
+                                {canRegister && event.registrationDeadline && (
+                                    <div className="text-center text-xs text-gray-500 pt-2">
+                                        Note: Registration closes in {formatDistanceToNow(parseISO(event.registrationDeadline))}.
+                                    </div>
+                                )}
+
+                                <hr className="my-2" />
+
+                                {null}
 
                                 {isOrganizer && isApproved && (
                                     <div className="pt-4 border-t">
