@@ -630,13 +630,15 @@ const EventDetails: React.FC = () => {
                                     <span className="hidden md:inline font-medium">Download</span>
                                 </button>
 
-                                <button
-                                    onClick={() => navigate(`/events/edit/${event.id}`)}
-                                    className="flex items-center gap-2 px-4 py-2 bg-blue-600/80 hover:bg-blue-600 backdrop-blur-md border border-blue-400/30 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105"
-                                >
-                                    <Settings size={16} />
-                                    <span className="hidden md:inline font-medium">Edit</span>
-                                </button>
+                                {isAdmin && (
+                                    <button
+                                        onClick={() => navigate(`/events/edit/${event.id}`)}
+                                        className="flex items-center gap-2 px-4 py-2 bg-blue-600/80 hover:bg-blue-600 backdrop-blur-md border border-blue-400/30 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105"
+                                    >
+                                        <Settings size={16} />
+                                        <span className="hidden md:inline font-medium">Edit</span>
+                                    </button>
+                                )}
 
                                 <button
                                     onClick={handleDelete}
@@ -815,7 +817,7 @@ const EventDetails: React.FC = () => {
 
                                 <p className="text-gray-700 text-lg whitespace-pre-line leading-relaxed">{event.description}</p>
 
-                                {event.category === 'hackathon' && event.resources && event.resources.length > 0 && (
+                                {event.category === 'hackathon' && event.resources && event.resources.length > 0 && user?.role !== 'student' && (
                                     <div className="mt-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
                                         <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
                                             <ClipboardList size={18} /> Required Resources
@@ -1279,7 +1281,10 @@ const EventDetails: React.FC = () => {
                                 <CardBody className="text-gray-700 space-y-3">
                                     <div><strong className="block text-gray-900">Club Name</strong> {club.name}</div>
                                     <div><strong className="block text-gray-900">Faculty Advisor</strong> {club.facultyAdvisor}</div>
+                                    {club.phoneNo && <div><strong className="block text-gray-900">Club Contact</strong> <a href={`tel:${club.phoneNo}`} className="text-indigo-600 hover:underline">{club.phoneNo}</a></div>}
+                                    {club.president && <div><strong className="block text-gray-900">President</strong> {club.president}</div>}
                                     {event.presidentPhone && <div><strong className="block text-gray-900">President Contact</strong> <a href={`tel:${event.presidentPhone}`} className="text-indigo-600 hover:underline">{event.presidentPhone}</a></div>}
+                                    {club.vicePresident && <div><strong className="block text-gray-900">Vice President</strong> {club.vicePresident}</div>}
                                     {event.vicePresidentPhone && <div><strong className="block text-gray-900">Vice-President Contact</strong> <a href={`tel:${event.vicePresidentPhone}`} className="text-indigo-600 hover:underline">{event.vicePresidentPhone}</a></div>}
                                 </CardBody>
                             </Card>
@@ -1386,19 +1391,19 @@ const EventDetails: React.FC = () => {
                         </Card>
                     </aside>
                 </div >
-                            {/* Navigation View Modal */}
-            {isNavigating && event.venueLocation && (
-                <NavigationView
-                    destination={event.venueLocation.coordinates}
-                    destinationName={event.venueLocation.name}
-                    startingPoints={event.venueLocation.startingPoints}
-                    instructions={event.venueLocation.instructions}
-                    onClose={() => setIsNavigating(false)}
-                />
-            )}
-            </div > 
-        </div > 
-    ); 
-}; 
+                {/* Navigation View Modal */}
+                {isNavigating && event.venueLocation && (
+                    <NavigationView
+                        destination={event.venueLocation.coordinates}
+                        destinationName={event.venueLocation.name}
+                        startingPoints={event.venueLocation.startingPoints}
+                        instructions={event.venueLocation.instructions}
+                        onClose={() => setIsNavigating(false)}
+                    />
+                )}
+            </div >
+        </div >
+    );
+};
 
 export default EventDetails;
