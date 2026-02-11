@@ -1386,6 +1386,16 @@ const EventDetails: React.FC = () => {
                         </Card>
                     </aside>
                 </div >
+                            {/* Navigation View Modal */}
+            {isNavigating && event.venueLocation && (
+                <NavigationView
+                    destination={event.venueLocation.coordinates}
+                    destinationName={event.venueLocation.name}
+                    startingPoints={event.venueLocation.startingPoints}
+                    instructions={event.venueLocation.instructions}
+                    onClose={() => setIsNavigating(false)}
+                />
+            )}
             </div > 
         </div > 
     ); 
