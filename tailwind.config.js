@@ -90,6 +90,7 @@ export default {
         'slide-up': 'slideUp 0.3s ease-out',
         'slide-down': 'slideDown 0.3s ease-out',
         'slide-in-right': 'slideInRight 0.3s ease-out',
+        'scan': 'scan 2.5s ease-in-out infinite',
       },
       keyframes: {
         fadeIn: {
@@ -107,6 +108,10 @@ export default {
         slideInRight: {
           '0%': { transform: 'translateX(10px)', opacity: '0' },
           '100%': { transform: 'translateX(0)', opacity: '1' },
+        },
+        scan: {
+          '0%, 100%': { top: '0%' },
+          '50%': { top: '100%' },
         },
       },
     },

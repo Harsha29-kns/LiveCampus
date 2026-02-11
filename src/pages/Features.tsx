@@ -91,7 +91,7 @@ const Features = () => {
                 {
                     icon: <CreditCard className="w-6 h-6" />,
                     title: "Payment Verification",
-                    description: "Secure tools for manual and automated verification of event payments."
+                    description: "Secure tools for manual and automated verification(coming soon) of event payments."
                 }
             ]
         },
@@ -113,7 +113,7 @@ const Features = () => {
                 {
                     icon: <Upload className="w-6 h-6" />,
                     title: "Bulk Data Import",
-                    description: "Easily upload student lists and data via CSV for quick setup."
+                    description: "Easily upload clubs,faculty lists and data via CSV for quick setup."
                 },
                 {
                     icon: <MessageSquare className="w-6 h-6" />,

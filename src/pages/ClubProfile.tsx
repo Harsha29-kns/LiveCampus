@@ -44,7 +44,16 @@ const CreateClubProfileForm: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const success = await createClubProfileForUser(formData);
+    const clubData = {
+      ...formData,
+      presidentId: '',
+      vicePresidentId: '',
+      facultyAdvisorId: '',
+      facultyMembers: [],
+      tags: [],
+      points: 0
+    };
+    const success = await createClubProfileForUser(clubData);
     if (success) {
       navigate('/');
     }

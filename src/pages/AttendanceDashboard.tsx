@@ -2,14 +2,18 @@ import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { useEventStore } from '../stores/eventStore';
 import { useNavigate } from 'react-router-dom';
-import Button from '../components/ui/Button';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import { Event } from '../types';
+import { Search, Calendar, CheckCircle, ChevronRight, QrCode } from 'lucide-react';
+import { motion } from 'framer-motion';
+import Input from '../components/ui/Input';
+import { format, parseISO } from 'date-fns';
 
 const AttendanceDashboard: React.FC = () => {
   const { user } = useAuthStore();
   const { events, fetchEvents, isLoading } = useEventStore();
   const navigate = useNavigate();
+  const [searchTerm, setSearchTerm] = useState('');
   const [myEvents, setMyEvents] = useState<Event[]>([]);
 
   useEffect(() => {
@@ -22,8 +26,6 @@ const AttendanceDashboard: React.FC = () => {
       if (user.role === 'club' && user.clubId) {
         filteredEvents = events.filter(event => event.organizerId === user.clubId && (event.status === 'approved' || event.status === 'completed'));
       } else if (user.role === 'faculty') {
-        // Assuming faculty can see all approved events to manage attendance
-        // This could be refined to only events they are associated with if such a link exists
         filteredEvents = events.filter(event => event.status === 'approved' || event.status === 'completed');
       }
 
@@ -32,52 +34,100 @@ const AttendanceDashboard: React.FC = () => {
     }
   }, [events, user]);
 
+  const handleSelectEvent = (event: Event) => {
+    navigate(`/events/${event.id}/attendance`);
+  };
+
+  const filteredEvents = myEvents.filter(event =>
+    event.title.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center min-h-[50vh]">
-        <LoadingSpinner size="lg" text="Loading events for attendance..." />
+      <div className="flex flex-col justify-center items-center min-h-[60vh] gap-4">
+        <LoadingSpinner size="lg" />
+        <p className="text-slate-500 animate-pulse">Loading attendance dashboard...</p>
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto mt-8 p-4 bg-white rounded-lg shadow-md">
-      <h2 className="text-3xl font-bold mb-6 text-gray-800">Attendance Dashboard</h2>
+    <div className="space-y-8 pb-10 animate-fade-in">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">
+            Attendance Tracker
+          </h1>
+          <p className="text-slate-500 mt-2 text-lg">Manage check-ins and generate certificates.</p>
+        </div>
+        <div className="w-full md:w-72">
+          <Input
+            placeholder="Search events..."
+            leftIcon={<Search size={18} />}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="bg-white shadow-sm border-slate-200 focus:border-green-500 focus:ring-green-500"
+          />
+        </div>
+      </div>
 
       {myEvents.length === 0 ? (
-        <div className="text-center py-10 px-6 bg-gray-50 rounded-lg">
-          <h3 className="text-lg font-medium text-gray-700">No Approved Events Found</h3>
-          <p className="mt-2 text-sm text-gray-500">
-            You have no upcoming or past approved events to manage attendance for.
-          </p>
+        <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-slate-200 shadow-sm">
+          <div className="p-4 bg-slate-50 rounded-full inline-flex mb-4">
+            <QrCode className="h-8 w-8 text-slate-400" />
+          </div>
+          <h3 className="text-lg font-bold text-slate-700">No events found</h3>
+          <p className="text-slate-500 mt-1">You haven't organized any approved events yet.</p>
+        </div>
+      ) : filteredEvents.length === 0 ? (
+        <div className="text-center py-12">
+          <p className="text-slate-500">No events match your search.</p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full border-collapse border border-gray-200">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="border px-4 py-3 text-left text-sm font-semibold text-gray-600">Event Title</th>
-                <th className="border px-4 py-3 text-left text-sm font-semibold text-gray-600">Date</th>
-                <th className="border px-4 py-3 text-center text-sm font-semibold text-gray-600">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {myEvents.map(event => (
-                <tr key={event.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="border px-4 py-3 font-medium text-gray-800">{event.title}</td>
-                  <td className="border px-4 py-3 text-sm text-gray-600">{new Date(event.startDate).toLocaleDateString()}</td>
-                  <td className="border px-4 py-3 text-center">
-                    <Button
-                      size="sm"
-                      onClick={() => navigate(`/events/${event.id}/attendance`)}
-                    >
-                      Manage Attendance
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          {filteredEvents.map((event, index) => (
+            <motion.div
+              key={event.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: index * 0.05 }}
+              whileHover={{ y: -5 }}
+              className="bg-white rounded-2xl overflow-hidden shadow-lg shadow-slate-200/50 border border-slate-100 group cursor-pointer flex flex-col h-full"
+              onClick={() => handleSelectEvent(event)}
+            >
+              <div className="p-6 flex-1">
+                <div className="flex justify-between items-start mb-4">
+                  <div className={`p-2 rounded-lg ${event.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-teal-100 text-teal-700'}`}>
+                    {event.status === 'completed' ? <CheckCircle size={20} /> : <QrCode size={20} />}
+                  </div>
+                  <span className={`px-2.5 py-1 text-xs font-bold rounded-full uppercase tracking-wide ${event.status === 'completed'
+                    ? 'bg-green-100 text-green-700 border border-green-200'
+                    : 'bg-teal-100 text-teal-700 border border-teal-200'
+                    }`}>
+                    {event.status}
+                  </span>
+                </div>
+
+                <h3 className="text-xl font-bold text-slate-800 mb-2 group-hover:text-green-600 transition-colors line-clamp-2">
+                  {event.title}
+                </h3>
+
+                <div className="flex items-center text-slate-500 text-sm mb-4">
+                  <Calendar size={14} className="mr-1.5" />
+                  <span>{format(parseISO(event.startDate), 'MMMM do, yyyy')}</span>
+                </div>
+              </div>
+
+              <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-between items-center group-hover:bg-green-50/50 transition-colors">
+                <span className="text-sm font-medium text-slate-600 group-hover:text-green-600 transition-colors">
+                  Manage Check-ins
+                </span>
+                <div className="p-1.5 rounded-full bg-white border border-slate-200 text-slate-400 group-hover:border-green-200 group-hover:text-green-600 transition-all shadow-sm">
+                  <ChevronRight size={16} />
+                </div>
+              </div>
+            </motion.div>
+          ))}
         </div>
       )}
     </div>

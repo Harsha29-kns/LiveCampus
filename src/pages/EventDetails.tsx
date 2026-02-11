@@ -1384,96 +1384,11 @@ const EventDetails: React.FC = () => {
                                 </div>
                             </CardBody>
                         </Card>
-
-                        {/* Modern Navigation QR Card */}
-                        {event.venueLocation && (
-                            <Card className="shadow-xl border-2 border-purple-200/50 hover:shadow-2xl transition-all duration-300 rounded-2xl overflow-hidden bg-gradient-to-br from-white via-purple-50/20 to-pink-50/20">
-                                <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 border-b-2 border-purple-200/50">
-                                    <h2 className="text-2xl font-bold flex items-center gap-3">
-                                        <div className="p-2 bg-purple-500/10 rounded-xl">
-                                            <Navigation size={24} className="text-purple-600" />
-                                        </div>
-                                        <span className="bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-                                            Navigate to Venue
-                                        </span>
-                                    </h2>
-                                </CardHeader>
-                                <CardBody className="text-center space-y-5 p-6">
-                                    <p className="text-sm text-gray-600 font-medium">
-                                        Scan this QR code to open navigation
-                                    </p>
-
-                                    <div className="relative inline-block">
-                                        <div className="absolute -inset-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl blur opacity-20"></div>
-                                        <div
-                                            ref={qrRef}
-                                            className="relative bg-white p-5 rounded-2xl border-2 border-purple-300 shadow-xl"
-                                        >
-                                            <QRCode
-                                                value={`${window.location.origin}/events/${event.id}/navigate`}
-                                                size={200}
-                                                level="H"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-3">
-                                        <button
-                                            onClick={() => setIsNavigating(true)}
-                                            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
-                                        >
-                                            <Navigation size={18} />
-                                            <span>Open Navigation</span>
-                                        </button>
-
-                                        <button
-                                            onClick={async () => {
-                                                if (qrRef.current) {
-                                                    try {
-                                                        const dataUrl = await toPng(qrRef.current, {
-                                                            quality: 1,
-                                                            pixelRatio: 2,
-                                                        });
-                                                        const link = document.createElement('a');
-                                                        link.download = `${event.title}-navigation-qr.png`;
-                                                        link.href = dataUrl;
-                                                        link.click();
-                                                        toast.success('Navigation QR code downloaded!');
-                                                    } catch (err) {
-                                                        console.error('Failed to download QR code:', err);
-                                                        toast.error('Failed to download QR code');
-                                                    }
-                                                }
-                                            }}
-                                            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-white hover:bg-gray-50 border-2 border-purple-300 text-purple-700 font-semibold rounded-xl shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105"
-                                        >
-                                            <Share2 size={18} />
-                                            <span>Download QR Code</span>
-                                        </button>
-                                    </div>
-
-                                    <p className="text-xs text-gray-500">
-                                        Share this QR code on posters or flyers for easy navigation
-                                    </p>
-                                </CardBody>
-                            </Card>
-                        )}
                     </aside>
                 </div >
-            </div >
-
-            {/* Navigation View Modal */}
-            {isNavigating && event.venueLocation && (
-                <NavigationView
-                    destination={event.venueLocation.coordinates}
-                    destinationName={event.venueLocation.name}
-                    startingPoints={event.venueLocation.startingPoints}
-                    instructions={event.venueLocation.instructions}
-                    onClose={() => setIsNavigating(false)}
-                />
-            )}
-        </div >
-    );
-};
+            </div > 
+        </div > 
+    ); 
+}; 
 
 export default EventDetails;

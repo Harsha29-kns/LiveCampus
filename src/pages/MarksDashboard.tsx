@@ -2,15 +2,19 @@ import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { useEventStore } from '../stores/eventStore';
 import { useNavigate } from 'react-router-dom';
-import Button from '../components/ui/Button';
+
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import { Event } from '../types';
+import { Search, Calendar, CheckCircle, Clock, ChevronRight, Award } from 'lucide-react';
+import { motion } from 'framer-motion';
+import Input from '../components/ui/Input';
+import { format, parseISO } from 'date-fns';
 
 const MarksDashboard: React.FC = () => {
     const { user } = useAuthStore();
     const { events, fetchEvents, isLoading: isEventsLoading } = useEventStore();
     const navigate = useNavigate();
-
+    const [searchTerm, setSearchTerm] = useState('');
     const [myEvents, setMyEvents] = useState<Event[]>([]);
 
     useEffect(() => {
@@ -26,68 +30,100 @@ const MarksDashboard: React.FC = () => {
         }
     }, [events, user]);
 
-
-
-
     const handleSelectEvent = (event: Event) => {
         navigate(`/events/${event.id}/marks`);
     };
 
+    const filteredEvents = myEvents.filter(event =>
+        event.title.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
     if (isEventsLoading) {
         return (
-            <div className="flex justify-center items-center min-h-[50vh]">
-                <LoadingSpinner size="lg" text="Loading events..." />
+            <div className="flex flex-col justify-center items-center min-h-[60vh] gap-4">
+                <LoadingSpinner size="lg" />
+                <p className="text-slate-500 animate-pulse">Loading marks dashboard...</p>
             </div>
         );
     }
 
     return (
-        <div className="max-w-4xl mx-auto mt-8 p-6 bg-white rounded-xl shadow-sm border border-gray-100 animate-fade-in">
-            <h2 className="text-2xl font-bold mb-6 text-gray-900">Marks Dashboard</h2>
-            <p className="text-gray-600 mb-6">Select an event to manage marks and view grading reports.</p>
+        <div className="space-y-8 pb-10 animate-fade-in">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div>
+                    <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">
+                        Marks Management
+                    </h1>
+                    <p className="text-slate-500 mt-2 text-lg">Select an event to grade participants and export results.</p>
+                </div>
+                <div className="w-full md:w-72">
+                    <Input
+                        placeholder="Search events..."
+                        leftIcon={<Search size={18} />}
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="bg-white shadow-sm border-slate-200 focus:border-indigo-500 focus:ring-indigo-500"
+                    />
+                </div>
+            </div>
 
             {myEvents.length === 0 ? (
-                <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
-                    <p className="text-gray-500">No events found for your club.</p>
+                <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-slate-200 shadow-sm">
+                    <div className="p-4 bg-slate-50 rounded-full inline-flex mb-4">
+                        <Award className="h-8 w-8 text-slate-400" />
+                    </div>
+                    <h3 className="text-lg font-bold text-slate-700">No events found</h3>
+                    <p className="text-slate-500 mt-1">You haven't organized any approved events yet.</p>
+                </div>
+            ) : filteredEvents.length === 0 ? (
+                <div className="text-center py-12">
+                    <p className="text-slate-500">No events match your search.</p>
                 </div>
             ) : (
-                <div className="overflow-hidden rounded-lg border border-gray-200">
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                            <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Event Name</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                            {myEvents.map(event => (
-                                <tr key={event.id} className="hover:bg-gray-50 transition-colors">
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="text-sm font-medium text-gray-900">{event.title}</div>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {new Date(event.startDate).toLocaleDateString()}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${event.status === 'completed' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
-                                            }`}>
-                                            {event.status}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <Button
-                                            size="sm"
-                                            onClick={() => handleSelectEvent(event)}
-                                        >
-                                            Manage Marks
-                                        </Button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    {filteredEvents.map((event, index) => (
+                        <motion.div
+                            key={event.id}
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.3, delay: index * 0.05 }}
+                            whileHover={{ y: -5 }}
+                            className="bg-white rounded-2xl overflow-hidden shadow-lg shadow-slate-200/50 border border-slate-100 group cursor-pointer flex flex-col h-full"
+                            onClick={() => handleSelectEvent(event)}
+                        >
+                            <div className="p-6 flex-1">
+                                <div className="flex justify-between items-start mb-4">
+                                    <div className={`p-2 rounded-lg ${event.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                                        {event.status === 'completed' ? <CheckCircle size={20} /> : <Clock size={20} />}
+                                    </div>
+                                    <span className={`px-2.5 py-1 text-xs font-bold rounded-full uppercase tracking-wide ${event.status === 'completed'
+                                        ? 'bg-green-100 text-green-700 border border-green-200'
+                                        : 'bg-blue-100 text-blue-700 border border-blue-200'
+                                        }`}>
+                                        {event.status}
+                                    </span>
+                                </div>
+
+                                <h3 className="text-xl font-bold text-slate-800 mb-2 group-hover:text-indigo-600 transition-colors line-clamp-2">
+                                    {event.title}
+                                </h3>
+
+                                <div className="flex items-center text-slate-500 text-sm mb-4">
+                                    <Calendar size={14} className="mr-1.5" />
+                                    <span>{format(parseISO(event.startDate), 'MMMM do, yyyy')}</span>
+                                </div>
+                            </div>
+
+                            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-between items-center group-hover:bg-indigo-50/50 transition-colors">
+                                <span className="text-sm font-medium text-slate-600 group-hover:text-indigo-600 transition-colors">
+                                    Open Gradebook
+                                </span>
+                                <div className="p-1.5 rounded-full bg-white border border-slate-200 text-slate-400 group-hover:border-indigo-200 group-hover:text-indigo-600 transition-all shadow-sm">
+                                    <ChevronRight size={16} />
+                                </div>
+                            </div>
+                        </motion.div>
+                    ))}
                 </div>
             )}
         </div>
