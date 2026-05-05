@@ -163,7 +163,6 @@ const Features = () => {
                 </div>
             </div>
 
-            {/* Main Features Grid */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 -mt-20 z-20">
                 <div className="space-y-24">
                     {categories.map((category, idx) => (
@@ -235,7 +234,6 @@ const Features = () => {
                 </div>
             </div>
 
-            {/* CTA Section */}
             <div className="bg-zinc-900 py-24 relative overflow-hidden">
                 <div className="absolute inset-0">
                     <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-600/10 blur-3xl rounded-full"></div>
