@@ -35,7 +35,6 @@
 
 **Backend:**
 - Node.js
-- Express.js
 - Firebase
 - JWT for authentication
 - Nodemailer for emails
