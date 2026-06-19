@@ -93,7 +93,7 @@ const Login: React.FC = () => {
           </motion.div>
 
           <div className="text-sm text-indigo-200/60">
-            © 2025 LiveCampus Inc. All rights reserved.
+            © 2026 LiveCampus Inc. All rights reserved.
           </div>
         </div>
       </div>
